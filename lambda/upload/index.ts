@@ -57,13 +57,13 @@ function sha256(text: string): Promise<string> {
 
 function sanitizeNickname(nickname: string): string {
   return nickname
-    .replace(/[^a-zA-Z0-9 ]/g, "")
+    .replace(/[^\p{Script=Han}a-zA-Z0-9 ]/gu, "")
     .trim()
     .slice(0, 20);
 }
 
 function isValidNickname(nickname: string): boolean {
-  return /^[a-zA-Z0-9 ]{2,20}$/.test(nickname);
+  return /^[\p{Script=Han}a-zA-Z0-9 ]{2,20}$/u.test(nickname);
 }
 
 // ─── WebSocket broadcast ────────────────────────────────────────────────────

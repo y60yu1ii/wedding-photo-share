@@ -47192,10 +47192,10 @@ function sha256(text) {
   );
 }
 function sanitizeNickname(nickname) {
-  return nickname.replace(/[^a-zA-Z0-9 ]/g, "").trim().slice(0, 20);
+  return nickname.replace(/[^\p{Script=Han}a-zA-Z0-9 ]/gu, "").trim().slice(0, 20);
 }
 function isValidNickname(nickname) {
-  return /^[a-zA-Z0-9 ]{2,20}$/.test(nickname);
+  return /^[\p{Script=Han}a-zA-Z0-9 ]{2,20}$/u.test(nickname);
 }
 async function broadcastNewPhoto(eventId, photoId, s3Key) {
   const wsUrl = process.env.WEBSOCKET_API_URL;

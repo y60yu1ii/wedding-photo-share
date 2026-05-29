@@ -443,21 +443,24 @@ async function updateEvent(eventId: string, body: { name?: string; date?: string
 
 ---
 
-### Task 5: Comprehensive MIME Type Validation
+### Task 5: Comprehensive MIME Type and Unicode Nickname Validation
 
 **Files:**
-*   Modify: `lambda/upload/index.ts:15-21, 112-115`
+*   Modify: `lambda/upload/index.ts:15-21, 58-67, 112-115`
 *   Modify: `test/lambda/upload.test.ts`
 
-**Step 1: Write a failing MIME type test**
-*   Modify: `test/lambda/upload.test.ts` to assert that `image/jpg`, `image/gif`, `image/webp` are accepted, and `/^image\//i` allows any image format.
+**Step 1: Write failing tests for MIME types and Unicode Nicknames**
+*   Modify: `test/lambda/upload.test.ts` to assert:
+    *   `image/jpg`, `image/gif`, `image/webp` are accepted, and any `image/*` format is allowed.
+    *   Chinese nickname `"張三"` and alphanumeric space nickname `"Alice 王 12"` are valid.
+    *   HTML tags like `"<script>"` are invalid.
 
-**Step 2: Run test to verify it fails**
+**Step 2: Run test to verify they fail**
 *   Run: `npm run test:unit -- test/lambda/upload.test.ts`
-*   Expected: FAIL (unsupported file type error for new formats)
+*   Expected: FAIL (unsupported file type error for new formats, and validation/assertion errors for Chinese nicknames)
 
 **Step 3: Write minimal implementation**
-*   Modify `lambda/upload/index.ts` to support image regex matching and expand `MAGIC_BYTES`:
+*   Modify `lambda/upload/index.ts` to support image regex matching, expand `MAGIC_BYTES`, and allow multi-language Unicode nicknames:
 ```typescript
 // 1. Expand MAGIC_BYTES keys
 const MAGIC_BYTES: Record<string, { bytes: number[]; offset?: number }> = {
@@ -472,7 +475,25 @@ const MAGIC_BYTES: Record<string, { bytes: number[]; offset?: number }> = {
   "image/tiff": { bytes: [0x49, 0x49, 0x2a, 0x00] },
 };
 
-// 2. In presignUpload:
+// 2. In sanitizeNickname:
+function sanitizeNickname(nickname: string): string {
+  // Strip dangerous HTML tag delimiters < and > to prevent basic XSS injections
+  return nickname
+    .replace(/[<>]/g, "")
+    .trim()
+    .slice(0, 20);
+}
+
+// 3. In isValidNickname:
+function isValidNickname(nickname: string): boolean {
+  // Allow Chinese, English, numbers, spaces, common punctuation between 2 and 20 characters.
+  // Must not contain HTML tag delimiters < and >.
+  const hasHtml = /[<>]/.test(nickname);
+  const trimmed = nickname.trim();
+  return !hasHtml && trimmed.length >= 2 && trimmed.length <= 20;
+}
+
+// 4. In presignUpload:
   // Validate content type (accept any image/* format)
   if (!contentType.toLowerCase().startsWith("image/")) {
     return { statusCode: 400, body: JSON.stringify({ error: "Unsupported file type" }) };
@@ -484,7 +505,7 @@ const MAGIC_BYTES: Record<string, { bytes: number[]; offset?: number }> = {
 *   Expected: PASS
 
 **Step 5: Commit**
-*   Run: `git add lambda/upload/index.ts test/lambda/upload.test.ts && git commit -m "feat: broaden upload MIME type validation to support image/* and common extensions"`
+*   Run: `git add lambda/upload/index.ts test/lambda/upload.test.ts && git commit -m "feat: broaden upload MIME validation and support multi-language Unicode nicknames"`
 
 ---
 
