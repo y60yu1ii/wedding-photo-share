@@ -247,7 +247,7 @@ export class WeddingPhotoStack extends cdk.Stack {
     }
     this.photoBucket.grantReadWrite(this.uploadLambda);
     this.photoBucket.grantRead(this.slideshowLambda);
-    this.photoBucket.grantRead(this.myguestLambda);
+    this.photoBucket.grantReadWrite(this.myguestLambda);
     jwtSecret.grantRead(this.adminLambda);
     this.dlq.grantSendMessages(this.uploadLambda);
 
@@ -464,7 +464,7 @@ export class WeddingPhotoStack extends cdk.Stack {
         allowedMethods: cloudfront.AllowedMethods.ALLOW_ALL,
         functionAssociations: [{
           function: corsFunction,
-          eventType: cloudfront.FunctionEventType.VIEWER_REQUEST,
+          eventType: cloudfront.FunctionEventType.VIEWER_RESPONSE,
         }],
       },
     });

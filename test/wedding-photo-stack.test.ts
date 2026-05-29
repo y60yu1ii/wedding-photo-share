@@ -197,4 +197,20 @@ describe("WeddingPhotoStack", () => {
       expect(outputs.PhotosTableName).toBeDefined();
     });
   });
+
+  // ---- CloudFront ----
+  describe("CloudFront Distribution", () => {
+    test("CloudFront API distribution exists and associates CORS function as viewer-response", () => {
+      const dists = byType(resources, "AWS::CloudFront::Distribution");
+      expect(dists.length).toBeGreaterThan(0);
+      const apiDist = dists.find((d: any) => 
+        d.Properties.DistributionConfig?.Aliases?.includes("api.fishare.de")
+      );
+      expect(apiDist).toBeDefined();
+      const associations = apiDist.Properties.DistributionConfig?.DefaultCacheBehavior?.FunctionAssociations ?? 
+                           apiDist.Properties.DistributionConfig?.DefaultBehavior?.FunctionAssociations;
+      expect(associations).toBeDefined();
+      expect(associations[0].EventType).toBe("viewer-response");
+    });
+  });
 });
