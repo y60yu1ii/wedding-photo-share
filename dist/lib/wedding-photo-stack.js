@@ -215,6 +215,7 @@ class WeddingPhotoStack extends cdk.Stack {
             handler: "index.handler",
             timeout: cdk.Duration.seconds(10),
             environment: {
+                EVENTS_TABLE: this.eventsTable.tableName,
                 PHOTOS_TABLE: this.photosTable.tableName,
                 PHOTO_BUCKET: this.photoBucket.bucketName,
                 STAGE,
@@ -226,6 +227,18 @@ class WeddingPhotoStack extends cdk.Stack {
             handler: "index.handler",
             timeout: cdk.Duration.seconds(10),
             environment: {
+                PHOTOS_TABLE: this.photosTable.tableName,
+                PHOTO_BUCKET: this.photoBucket.bucketName,
+                STAGE,
+            },
+        });
+        this.wallLambda = new lambda.Function(this, "WallLambda", {
+            ...baseLambdaProps,
+            code: lambda.Code.fromAsset(`lambda-pkgs/wall`),
+            handler: "index.handler",
+            timeout: cdk.Duration.seconds(10),
+            environment: {
+                EVENTS_TABLE: this.eventsTable.tableName,
                 PHOTOS_TABLE: this.photosTable.tableName,
                 PHOTO_BUCKET: this.photoBucket.bucketName,
                 STAGE,
@@ -246,12 +259,14 @@ class WeddingPhotoStack extends cdk.Stack {
             tbl.grantReadWriteData(this.uploadLambda);
             tbl.grantReadData(this.slideshowLambda);
             tbl.grantReadWriteData(this.myguestLambda);
+            tbl.grantReadData(this.wallLambda);
             tbl.grantReadWriteData(this.websocketLambda);
         }
         this.photoBucket.grantReadWrite(this.uploadLambda);
         this.photoBucket.grantRead(this.slideshowLambda);
         this.photoBucket.grantRead(this.adminLambda);
         this.photoBucket.grantReadWrite(this.myguestLambda);
+        this.photoBucket.grantRead(this.wallLambda);
         jwtSecret.grantRead(this.adminLambda);
         this.dlq.grantSendMessages(this.uploadLambda);
         // ---------------------------------------------------------------------------
@@ -261,6 +276,7 @@ class WeddingPhotoStack extends cdk.Stack {
         const uploadInt = new integrations.HttpLambdaIntegration("UploadIntegration", this.uploadLambda);
         const slideshowInt = new integrations.HttpLambdaIntegration("SlideshowIntegration", this.slideshowLambda);
         const myguestInt = new integrations.HttpLambdaIntegration("MyGuestIntegration", this.myguestLambda);
+        const wallInt = new integrations.HttpLambdaIntegration("WallIntegration", this.wallLambda);
         this.restApi.addRoutes({
             path: "/admin/login",
             methods: [apigwv2.HttpMethod.ANY, apigwv2.HttpMethod.OPTIONS],
@@ -273,6 +289,21 @@ class WeddingPhotoStack extends cdk.Stack {
         });
         this.restApi.addRoutes({
             path: "/admin/events/{eventId}",
+            methods: [apigwv2.HttpMethod.ANY, apigwv2.HttpMethod.OPTIONS],
+            integration: adminInt,
+        });
+        this.restApi.addRoutes({
+            path: "/admin/events/{eventId}/template",
+            methods: [apigwv2.HttpMethod.ANY, apigwv2.HttpMethod.OPTIONS],
+            integration: adminInt,
+        });
+        this.restApi.addRoutes({
+            path: "/admin/events/{eventId}/template-assets/presign",
+            methods: [apigwv2.HttpMethod.ANY, apigwv2.HttpMethod.OPTIONS],
+            integration: adminInt,
+        });
+        this.restApi.addRoutes({
+            path: "/admin/events/{eventId}/template-assets/confirm",
             methods: [apigwv2.HttpMethod.ANY, apigwv2.HttpMethod.OPTIONS],
             integration: adminInt,
         });
@@ -316,6 +347,16 @@ class WeddingPhotoStack extends cdk.Stack {
             methods: [apigwv2.HttpMethod.DELETE],
             integration: myguestInt,
         });
+        this.restApi.addRoutes({
+            path: "/myguest/photos/{photoId}/representative",
+            methods: [apigwv2.HttpMethod.PATCH],
+            integration: myguestInt,
+        });
+        this.restApi.addRoutes({
+            path: "/wall/photos",
+            methods: [apigwv2.HttpMethod.GET],
+            integration: wallInt,
+        });
         // ---------------------------------------------------------------------------
         // 8. WebSocket API (L1 for full control)
         // ---------------------------------------------------------------------------
@@ -358,6 +399,7 @@ class WeddingPhotoStack extends cdk.Stack {
             { name: "UploadLambda", fn: this.uploadLambda },
             { name: "SlideshowLambda", fn: this.slideshowLambda },
             { name: "MyGuestLambda", fn: this.myguestLambda },
+            { name: "WallLambda", fn: this.wallLambda },
             { name: "WebSocketLambda", fn: this.websocketLambda },
         ];
         for (const { name, fn } of lambdas) {
@@ -460,6 +502,14 @@ class WeddingPhotoStack extends cdk.Stack {
         new cdk.CfnOutput(this, "PhotoBucketName", {
             value: this.photoBucket.bucketName,
             exportName: `wedding-photo-bucket-${STAGE}`,
+        });
+        new cdk.CfnOutput(this, "FrontendBucketName", {
+            value: frontendBucket.bucketName,
+            exportName: `wedding-photo-frontend-bucket-${STAGE}`,
+        });
+        new cdk.CfnOutput(this, "FrontendDistributionId", {
+            value: distribution.distributionId,
+            exportName: `wedding-photo-frontend-distribution-${STAGE}`,
         });
         new cdk.CfnOutput(this, "RestApiUrl", {
             value: this.restApi.url ?? "unknown",

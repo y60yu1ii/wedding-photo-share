@@ -2,6 +2,7 @@
   import { onMount } from "svelte";
   import { page } from "$app/stores";
   import { myguest } from "$lib/api/client";
+  import GuestRepresentativePicker from "$lib/components/GuestRepresentativePicker.svelte";
 
   const eventId = $derived($page.params.eventId ?? "");
 
@@ -9,11 +10,14 @@
   let loading = $state(true);
   let deletingId = $state<string | null>(null);
   let nickname = $state("");
+  let guestKey = $state("");
   let searched = $state(false);
+  let selectedPhotoId = $state("");
 
   onMount(async () => {
     const q = new URLSearchParams(window.location.search);
-    nickname = q.get("nickname") ?? "";
+    nickname = q.get("nickname") ?? localStorage.getItem("guest_nickname") ?? "";
+    guestKey = localStorage.getItem(`guest_key:${eventId}`) || q.get("guestKey") || "";
     if (!nickname.trim()) {
       loading = false;
       return;
@@ -21,17 +25,33 @@
     await search();
   });
 
+  function syncSelectedPhotoId() {
+    const selected = photos.find((photo) => photo.PK === photo.representativePhotoId);
+    selectedPhotoId = selected?.PK ?? photos[0]?.representativePhotoId ?? photos[0]?.PK ?? "";
+  }
+
   async function search() {
     if (!nickname.trim()) return;
     loading = true;
     try {
-      photos = await myguest.photos(eventId, nickname.trim());
+      photos = guestKey.trim()
+        ? await myguest.photos(eventId, guestKey.trim(), nickname.trim())
+        : await myguest.photos(eventId, nickname.trim());
       searched = true;
+      syncSelectedPhotoId();
     } catch {
       // no photos yet
     } finally {
       loading = false;
     }
+  }
+
+  async function setRepresentative(photoId: string) {
+    if (!nickname.trim()) return;
+    const normalizedGuestKey = guestKey.trim();
+    await myguest.setRepresentative(photoId, eventId, normalizedGuestKey || undefined, normalizedGuestKey ? nickname.trim() : nickname.trim());
+    selectedPhotoId = photoId;
+    photos = photos.map((photo) => ({ ...photo, representativePhotoId: photoId }));
   }
 
   async function handleDelete(photoPK: string) {
@@ -79,24 +99,41 @@
       請輸入暱稱後查詢
     </div>
   {:else}
-    <div class="grid grid-cols-3 gap-1">
-      {#each photos as photo}
-        <div class="relative aspect-square">
-          <img
-            src={photo.presignedUrl ?? `https://picsum.photos/seed/${photo.PK}/200/200`}
-            alt={photo.nickname}
-            class="w-full h-full object-cover rounded-lg"
+    <div class="bg-white rounded-2xl p-4 shadow-sm border border-[#e8d5c4] mb-4">
+      <p class="text-xs font-semibold text-[#8b7355] mb-2">我的簽到照</p>
+      {#if photos.length > 0}
+        <div class="mb-4">
+          <GuestRepresentativePicker
+            photos={photos}
+            selectedPhotoId={selectedPhotoId}
+            onChoose={setRepresentative}
           />
-          <div class="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-xs text-center py-0.5 truncate px-1">
-            {photo.nickname}
-          </div>
-          <button
-            onclick={() => handleDelete(photo.PK)}
-            disabled={deletingId === photo.PK}
-            class="absolute top-1 right-1 w-5 h-5 bg-red-500 text-white rounded-full text-xs font-bold hover:bg-red-600 disabled:opacity-50"
-          >×</button>
         </div>
-      {/each}
+      {/if}
+
+      <p class="text-xs font-semibold text-[#8b7355] mb-2">我的上傳照片</p>
+      <div class="grid grid-cols-3 gap-1">
+        {#each photos as photo}
+          <div class="relative aspect-square">
+            <img
+              src={photo.presignedUrl ?? `https://picsum.photos/seed/${photo.PK}/200/200`}
+              alt={photo.nickname}
+              class="w-full h-full object-cover rounded-lg"
+            />
+            <div class="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-xs text-center py-0.5 truncate px-1">
+              {photo.nickname}
+            </div>
+            {#if photo.PK === selectedPhotoId}
+              <div class="absolute top-1 left-1 rounded-full bg-[#d4a373] px-2 py-0.5 text-[10px] font-semibold text-white">簽到</div>
+            {/if}
+            <button
+              onclick={() => handleDelete(photo.PK)}
+              disabled={deletingId === photo.PK}
+              class="absolute top-1 right-1 w-5 h-5 bg-red-500 text-white rounded-full text-xs font-bold hover:bg-red-600 disabled:opacity-50"
+            >×</button>
+          </div>
+        {/each}
+      </div>
     </div>
   {/if}
 

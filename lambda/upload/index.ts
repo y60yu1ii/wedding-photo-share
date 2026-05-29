@@ -5,6 +5,7 @@ import {
   QueryCommand,
   UpdateCommand,
   GetCommand,
+  ScanCommand,
 } from "@aws-sdk/lib-dynamodb";
 import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
@@ -70,6 +71,40 @@ function isValidNickname(nickname: string): boolean {
   const hasHtml = /[<>]/.test(nickname);
   const trimmed = nickname.trim();
   return !hasHtml && trimmed.length >= 2 && trimmed.length <= 20;
+}
+
+async function getRepresentativePhotoId(eventId: string, guestKey?: string, nickname?: string): Promise<string | null> {
+  const expressionValues: Record<string, string> = { ":eid": eventId };
+  const filterParts = ["eventId = :eid", "attribute_exists(confirmedAt)"];
+
+  if (guestKey) {
+    expressionValues[":gk"] = guestKey;
+    filterParts.push("guestKey = :gk");
+  } else if (nickname) {
+    expressionValues[":nickname"] = nickname;
+    filterParts.push("nickname = :nickname");
+  }
+
+  const result = await dynamo.send(
+    new ScanCommand({
+      TableName: process.env.PHOTOS_TABLE!,
+      FilterExpression: filterParts.join(" AND "),
+      ExpressionAttributeValues: expressionValues,
+    })
+  );
+
+  const guestPhotos = (result.Items ?? []).sort((a, b) =>
+    (a.confirmedAt ?? a.uploadedAt ?? a.createdAt ?? "").localeCompare(b.confirmedAt ?? b.uploadedAt ?? b.createdAt ?? "")
+  );
+
+  if (guestPhotos.length === 0) {
+    return null;
+  }
+
+  return (
+    guestPhotos.find((photo) => typeof photo.representativePhotoId === "string" && photo.representativePhotoId)
+      ?.representativePhotoId ?? guestPhotos[0].PK
+  );
 }
 
 // ─── WebSocket broadcast ────────────────────────────────────────────────────
@@ -184,6 +219,7 @@ async function confirmUpload(
   eventId: string,
   nickname: string,
   uploadKey: string,
+  guestKey?: string,
   greeting?: string
 ) {
   // 1. Validate upload key
@@ -197,6 +233,8 @@ async function confirmUpload(
     return { statusCode: 400, body: JSON.stringify({ error: "Invalid nickname format" }) };
   }
   const cleanNickname = sanitizeNickname(nickname);
+  const cleanGuestKey = typeof guestKey === "string" && guestKey.trim() ? guestKey.trim() : undefined;
+  const representativePhotoId = (await getRepresentativePhotoId(eventId, cleanGuestKey, cleanNickname)) ?? photoId;
 
   // Fetch event metadata to check if it requires review
   const eventGet = await dynamo.send(
@@ -209,23 +247,32 @@ async function confirmUpload(
   const finalStatus = requiresReview ? "pending" : "approved";
 
   // 3. Update DynamoDB record
-  const updateExpr = greeting
-    ? "SET nickname = :n, #status = :s, confirmedAt = :c, greeting = :g"
-    : "SET nickname = :n, #status = :s, confirmedAt = :c";
   const exprValues: Record<string, any> = {
     ":n": cleanNickname,
     ":s": finalStatus,
     ":c": new Date().toISOString(),
+    ":representativePhotoId": representativePhotoId,
   };
+  const updateFields = [
+    "nickname = :n",
+    "#status = :s",
+    "confirmedAt = :c",
+    "representativePhotoId = :representativePhotoId",
+  ];
   if (greeting) {
+    updateFields.push("greeting = :g");
     exprValues[":g"] = greeting.slice(0, 50); // limit to 50 chars
+  }
+  if (cleanGuestKey) {
+    updateFields.push("guestKey = :guestKey");
+    exprValues[":guestKey"] = cleanGuestKey;
   }
 
   await dynamo.send(
     new UpdateCommand({
       TableName: process.env.PHOTOS_TABLE!,
       Key: { PK: photoId, SK: "METADATA" },
-      UpdateExpression: updateExpr,
+      UpdateExpression: `SET ${updateFields.join(", ")}`,
       ExpressionAttributeNames: { "#status": "status" },
       ExpressionAttributeValues: exprValues,
       ConditionExpression: "attribute_exists(PK) AND attribute_exists(SK)",
@@ -288,11 +335,11 @@ export async function handler(event: any) {
 
     // POST /upload/confirm
     if (path === "/upload/confirm" && method === "POST") {
-      const { eventId, photoId, nickname, greeting } = body;
+      const { eventId, photoId, nickname, greeting, guestKey } = body;
       if (!eventId || !photoId || !nickname) {
         return { statusCode: 400, body: JSON.stringify({ error: "missing fields" }) };
       }
-      const result = await confirmUpload(photoId, eventId, nickname, queryKey, greeting);
+      const result = await confirmUpload(photoId, eventId, nickname, queryKey, guestKey, greeting);
       return result;
     }
 

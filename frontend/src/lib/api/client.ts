@@ -2,10 +2,14 @@
 import type {
   EventTemplate,
   EventTemplateResponse,
+  GuestUpload,
+  MyGuestPhotosResponse,
   TemplateAsset,
   TemplateLayer,
   TemplatePlayback,
   TemplateTransition,
+  WallPolicy,
+  WallPhotosResponse,
 } from "./types";
 
 const API_BASE = import.meta.env.VITE_API_URL ?? "";
@@ -24,6 +28,11 @@ function delay(ms: number) {
 function randomJitter(base: number): number {
   return base + Math.random() * base * 0.5;
 }
+
+type MyGuestPhotosMethod = {
+  (eventId: string, nickname: string): Promise<GuestUpload[]>;
+  (eventId: string, guestKey: string, nickname: string): Promise<GuestUpload[]>;
+};
 
 async function request(
   path: string,
@@ -95,7 +104,7 @@ export const events = {
     if (!res.ok) throw new Error("建立婚禮失敗");
     return res.json();
   },
-  async update(eventId: string, body: { name?: string; date?: string; requiresReview?: boolean }) {
+  async update(eventId: string, body: { name?: string; date?: string; requiresReview?: boolean; wallPolicy?: WallPolicy }) {
     const res = await request(`/admin/events/${eventId}`, {
       method: "PATCH",
       token: true,
@@ -150,12 +159,44 @@ export const slideshow = {
   },
 };
 
+export const wall = {
+  async photos(eventId: string): Promise<WallPhotosResponse> {
+    const res = await request(`/wall/photos?eventId=${encodeURIComponent(eventId)}`);
+    if (!res.ok) throw new Error("取得簽到牆失敗");
+    return res.json() as Promise<WallPhotosResponse>;
+  },
+};
+
+const myguestPhotos: MyGuestPhotosMethod = async (
+  eventId: string,
+  guestKeyOrNickname: string,
+  nickname?: string,
+): Promise<GuestUpload[]> => {
+  const params = new URLSearchParams({ eventId });
+  if (nickname === undefined) {
+    params.set("nickname", guestKeyOrNickname);
+  } else {
+    params.set("guestKey", guestKeyOrNickname);
+    params.set("nickname", nickname);
+  }
+
+  const res = await request(`/myguest/photos?${params.toString()}`);
+  if (!res.ok) throw new Error("取得上傳記錄失敗");
+  const data = (await res.json()) as MyGuestPhotosResponse;
+  return data.photos ?? [];
+};
+
 export const myguest = {
-  async photos(eventId: string, nickname: string) {
-    const res = await request(`/myguest/photos?eventId=${encodeURIComponent(eventId)}&nickname=${encodeURIComponent(nickname)}`);
-    if (!res.ok) throw new Error("取得上傳記錄失敗");
-    const data = await res.json();
-    return data.photos ?? [];
+  photos: myguestPhotos,
+  async setRepresentative(photoId: string, eventId: string, guestKey?: string, nickname?: string) {
+    const payload: Record<string, string> = { eventId };
+    if (guestKey) payload.guestKey = guestKey;
+    if (nickname) payload.nickname = nickname;
+    const res = await request(`/myguest/photos/${encodeURIComponent(photoId)}/representative`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) throw new Error("更新簽到照片失敗");
   },
   async delete(photoPK: string, eventId: string, nickname: string) {
     const res = await request(`/myguest/photos/${encodeURIComponent(photoPK)}`, {
@@ -176,11 +217,21 @@ export const upload = {
     if (!res.ok) throw new Error("取得上傳連結失敗");
     return res.json(); // { uploadUrl, photoId }
   },
-  async confirm(eventId: string, photoId: string, nickname: string, key?: string, greeting?: string) {
+  async confirm(
+    eventId: string,
+    photoId: string,
+    nickname: string,
+    key?: string,
+    guestKey?: string,
+    greeting?: string,
+  ) {
     const url = key ? `/upload/confirm?key=${encodeURIComponent(key)}` : "/upload/confirm";
+    const payload: Record<string, string> = { eventId, photoId, nickname };
+    if (guestKey) payload.guestKey = guestKey;
+    if (greeting) payload.greeting = greeting;
     const res = await request(url, {
       method: "POST",
-      body: JSON.stringify({ eventId, photoId, nickname, greeting }),
+      body: JSON.stringify(payload),
     });
     if (!res.ok) throw new Error("確認上傳失敗");
     return res.json();

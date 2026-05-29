@@ -3,6 +3,7 @@
   import { page } from "$app/stores";
   import { goto } from "$app/navigation";
   import { auth, events } from "$lib/api/client";
+  import WallPolicySelect from "$lib/components/WallPolicySelect.svelte";
 
   const eventId = $derived($page.params.eventId ?? "");
   const wsUrl = import.meta.env.VITE_WS_URL;
@@ -11,6 +12,7 @@
   let photos = $state<any[]>([]);
   let loading = $state(true);
   let wsStatus = $state<'disconnected' | 'connecting' | 'connected'>('disconnected');
+  let wallPolicy = $state<'approved_only' | 'all_uploads'>("approved_only");
   
   let socket: WebSocket;
 
@@ -66,6 +68,7 @@
         events.get(eventId),
         events.photos(eventId),
       ]);
+      wallPolicy = event.wallPolicy ?? "approved_only";
     } finally {
       loading = false;
     }
@@ -93,6 +96,16 @@
       event.requiresReview = { ...event, requiresReview: updatedValue }.requiresReview;
       // Also reload data or update event directly to make sure Svelte 5 states are properly reactively synced
       event = { ...event, requiresReview: updatedValue };
+    } catch (e: any) {
+      alert(e.message || "更新失敗");
+    }
+  }
+
+  async function saveWallPolicy(updatedValue: 'approved_only' | 'all_uploads') {
+    try {
+      await events.update(eventId, { wallPolicy: updatedValue });
+      wallPolicy = updatedValue;
+      event = { ...event, wallPolicy: updatedValue };
     } catch (e: any) {
       alert(e.message || "更新失敗");
     }
@@ -204,6 +217,16 @@
         >
           {event.requiresReview ? "🔓 切換為免審核" : "🔒 切換為需審核"}
         </button>
+      </div>
+
+      <div class="mt-4 pt-4 border-t border-[#e8d5c4] space-y-3">
+        <WallPolicySelect value={wallPolicy} onChange={saveWallPolicy} />
+        <a
+          href="/event/{eventId}/wall"
+          class="inline-flex items-center gap-2 rounded-full border border-[#e8d5c4] px-4 py-2 text-sm font-semibold text-[#3d2b1f] hover:bg-[#faf7f2] transition-colors"
+        >
+          打開簽到牆
+        </a>
       </div>
     {:else}
       <p class="text-sm text-[#8b7355] text-center py-4">此婚禮尚無金鑰，請重新建立。</p>

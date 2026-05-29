@@ -32162,7 +32162,7 @@ var require_dist_cjs22 = __commonJS({
       return [endpoints.getEndpointPlugin(config2, Command2.getEndpointParameterInstructions())];
     }).s("DynamoDB_20120810", "RestoreTableToPointInTime", {}).n("DynamoDBClient", "RestoreTableToPointInTimeCommand").sc(schemas_0.RestoreTableToPointInTime$).build() {
     };
-    var ScanCommand = class extends client.Command.classBuilder().ep({
+    var ScanCommand2 = class extends client.Command.classBuilder().ep({
       ...commonParams5,
       ResourceArn: { type: "contextParams", name: "TableName" }
     }).m(function(Command2, cs, config2, o2) {
@@ -32265,7 +32265,7 @@ var require_dist_cjs22 = __commonJS({
     var paginateListImports = core.createPaginator(DynamoDBClient2, ListImportsCommand, "NextToken", "NextToken", "PageSize");
     var paginateListTables = core.createPaginator(DynamoDBClient2, ListTablesCommand, "ExclusiveStartTableName", "LastEvaluatedTableName", "Limit");
     var paginateQuery = core.createPaginator(DynamoDBClient2, QueryCommand2, "ExclusiveStartKey", "LastEvaluatedKey", "Limit");
-    var paginateScan = core.createPaginator(DynamoDBClient2, ScanCommand, "ExclusiveStartKey", "LastEvaluatedKey", "Limit");
+    var paginateScan = core.createPaginator(DynamoDBClient2, ScanCommand2, "ExclusiveStartKey", "LastEvaluatedKey", "Limit");
     var checkState$5 = async (client$12, input) => {
       let reason;
       try {
@@ -32529,7 +32529,7 @@ var require_dist_cjs22 = __commonJS({
       QueryCommand: QueryCommand2,
       RestoreTableFromBackupCommand,
       RestoreTableToPointInTimeCommand,
-      ScanCommand,
+      ScanCommand: ScanCommand2,
       TagResourceCommand,
       TransactGetItemsCommand,
       TransactWriteItemsCommand,
@@ -32893,7 +32893,7 @@ var require_dist_cjs22 = __commonJS({
     exports2.SSEStatus = SSEStatus;
     exports2.SSEType = SSEType;
     exports2.ScalarAttributeType = ScalarAttributeType;
-    exports2.ScanCommand = ScanCommand;
+    exports2.ScanCommand = ScanCommand2;
     exports2.Select = Select;
     exports2.StreamViewType = StreamViewType;
     exports2.TableClass = TableClass;
@@ -33640,7 +33640,7 @@ var require_dist_cjs24 = __commonJS({
         return async () => handler2(this.clientCommand);
       }
     };
-    var ScanCommand = class extends DynamoDBDocumentClientCommand {
+    var ScanCommand2 = class extends DynamoDBDocumentClientCommand {
       input;
       inputKeyNodes = {
         ScanFilter: {
@@ -33930,7 +33930,7 @@ var require_dist_cjs24 = __commonJS({
         }
       }
       scan(args, optionsOrCb, cb) {
-        const command = new ScanCommand(args);
+        const command = new ScanCommand2(args);
         if (typeof optionsOrCb === "function") {
           this.send(command, optionsOrCb);
         } else if (typeof cb === "function") {
@@ -33983,7 +33983,7 @@ var require_dist_cjs24 = __commonJS({
       }
     };
     var paginateQuery = core.createPaginator(DynamoDBDocumentClient2, QueryCommand2, "ExclusiveStartKey", "LastEvaluatedKey", "Limit");
-    var paginateScan = core.createPaginator(DynamoDBDocumentClient2, ScanCommand, "ExclusiveStartKey", "LastEvaluatedKey", "Limit");
+    var paginateScan = core.createPaginator(DynamoDBDocumentClient2, ScanCommand2, "ExclusiveStartKey", "LastEvaluatedKey", "Limit");
     exports2.$Command = client.Command;
     exports2.__Client = client.Client;
     exports2.NumberValue = utilDynamodb.NumberValueImpl;
@@ -33999,7 +33999,7 @@ var require_dist_cjs24 = __commonJS({
     exports2.GetCommand = GetCommand2;
     exports2.PutCommand = PutCommand2;
     exports2.QueryCommand = QueryCommand2;
-    exports2.ScanCommand = ScanCommand;
+    exports2.ScanCommand = ScanCommand2;
     exports2.TransactGetCommand = TransactGetCommand;
     exports2.TransactWriteCommand = TransactWriteCommand;
     exports2.UpdateCommand = UpdateCommand2;
@@ -47191,6 +47191,25 @@ function isValidNickname(nickname) {
   const trimmed = nickname.trim();
   return !hasHtml && trimmed.length >= 2 && trimmed.length <= 20;
 }
+async function getRepresentativePhotoId(eventId, guestKey) {
+  const result = await dynamo.send(
+    new import_lib_dynamodb.ScanCommand({
+      TableName: process.env.PHOTOS_TABLE,
+      FilterExpression: "eventId = :eid AND guestKey = :gk AND attribute_exists(confirmedAt)",
+      ExpressionAttributeValues: {
+        ":eid": eventId,
+        ":gk": guestKey
+      }
+    })
+  );
+  const guestPhotos = (result.Items ?? []).sort(
+    (a5, b5) => (a5.confirmedAt ?? a5.uploadedAt ?? a5.createdAt ?? "").localeCompare(b5.confirmedAt ?? b5.uploadedAt ?? b5.createdAt ?? "")
+  );
+  if (guestPhotos.length === 0) {
+    return null;
+  }
+  return guestPhotos.find((photo) => typeof photo.representativePhotoId === "string" && photo.representativePhotoId)?.representativePhotoId ?? guestPhotos[0].PK;
+}
 async function broadcastNewPhoto(eventId, photoId, s3Key, nickname, greeting) {
   const connections = await dynamo.send(
     new import_lib_dynamodb.QueryCommand({
@@ -47270,7 +47289,7 @@ async function presignUpload(eventId, filename, contentType, fileSize, uploadKey
   );
   return { statusCode: 200, body: JSON.stringify({ photoId, uploadUrl, s3Key }) };
 }
-async function confirmUpload(photoId, eventId, nickname, uploadKey, greeting) {
+async function confirmUpload(photoId, eventId, nickname, uploadKey, guestKey, greeting) {
   const keyValid = await validateUploadKey(eventId, uploadKey);
   if (!keyValid) {
     return { statusCode: 403, body: JSON.stringify({ error: "Invalid or expired key" }) };
@@ -47279,6 +47298,8 @@ async function confirmUpload(photoId, eventId, nickname, uploadKey, greeting) {
     return { statusCode: 400, body: JSON.stringify({ error: "Invalid nickname format" }) };
   }
   const cleanNickname = sanitizeNickname(nickname);
+  const cleanGuestKey = typeof guestKey === "string" && guestKey.trim() ? guestKey.trim() : void 0;
+  const representativePhotoId = cleanGuestKey ? await getRepresentativePhotoId(eventId, cleanGuestKey) ?? photoId : photoId;
   const eventGet = await dynamo.send(
     new import_lib_dynamodb.GetCommand({
       TableName: process.env.EVENTS_TABLE,
@@ -47287,20 +47308,31 @@ async function confirmUpload(photoId, eventId, nickname, uploadKey, greeting) {
   );
   const requiresReview = eventGet.Item?.requiresReview !== false;
   const finalStatus = requiresReview ? "pending" : "approved";
-  const updateExpr = greeting ? "SET nickname = :n, #status = :s, confirmedAt = :c, greeting = :g" : "SET nickname = :n, #status = :s, confirmedAt = :c";
   const exprValues = {
     ":n": cleanNickname,
     ":s": finalStatus,
-    ":c": (/* @__PURE__ */ new Date()).toISOString()
+    ":c": (/* @__PURE__ */ new Date()).toISOString(),
+    ":representativePhotoId": representativePhotoId
   };
+  const updateFields = [
+    "nickname = :n",
+    "#status = :s",
+    "confirmedAt = :c",
+    "representativePhotoId = :representativePhotoId"
+  ];
   if (greeting) {
+    updateFields.push("greeting = :g");
     exprValues[":g"] = greeting.slice(0, 50);
+  }
+  if (cleanGuestKey) {
+    updateFields.push("guestKey = :guestKey");
+    exprValues[":guestKey"] = cleanGuestKey;
   }
   await dynamo.send(
     new import_lib_dynamodb.UpdateCommand({
       TableName: process.env.PHOTOS_TABLE,
       Key: { PK: photoId, SK: "METADATA" },
-      UpdateExpression: updateExpr,
+      UpdateExpression: `SET ${updateFields.join(", ")}`,
       ExpressionAttributeNames: { "#status": "status" },
       ExpressionAttributeValues: exprValues,
       ConditionExpression: "attribute_exists(PK) AND attribute_exists(SK)"
@@ -47349,11 +47381,11 @@ async function handler(event) {
       return result;
     }
     if (path === "/upload/confirm" && method === "POST") {
-      const { eventId, photoId, nickname, greeting } = body;
+      const { eventId, photoId, nickname, greeting, guestKey } = body;
       if (!eventId || !photoId || !nickname) {
         return { statusCode: 400, body: JSON.stringify({ error: "missing fields" }) };
       }
-      const result = await confirmUpload(photoId, eventId, nickname, queryKey, greeting);
+      const result = await confirmUpload(photoId, eventId, nickname, queryKey, guestKey, greeting);
       return result;
     }
     return { statusCode: 404, body: JSON.stringify({ error: "Not found" }) };

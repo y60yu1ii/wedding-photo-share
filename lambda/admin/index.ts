@@ -98,6 +98,7 @@ async function createEvent(body: { name: string; date: string; requiresReview?: 
     status: "active",
     createdAt: now,
     requiresReview: body.requiresReview ?? true, // default to true
+    wallPolicy: "approved_only",
     templateDraft,
     templatePublished: null,
     templateUpdatedAt: now,
@@ -318,6 +319,7 @@ async function getEventWithKeys(eventId: string) {
     uploadKey: item.uploadKey ?? "[已產生，請於建立時複製]",
     showKey: item.showKey ?? "[已產生，請於建立時複製]",
     requiresReview: item.requiresReview !== false, // default to true
+    wallPolicy: item.wallPolicy === "all_uploads" ? "all_uploads" : "approved_only",
     keyNote: item.uploadKey && item.showKey
       ? null
       : "金鑰僅於建立時顯示，請複製並妥善保存。若需重設，請刪除婚禮後重新建立。",
@@ -544,7 +546,7 @@ async function verifyToken(token: string): Promise<boolean> {
   }
 }
 
-async function updateEvent(eventId: string, body: { name?: string; date?: string; requiresReview?: boolean }) {
+async function updateEvent(eventId: string, body: { name?: string; date?: string; requiresReview?: boolean; wallPolicy?: "approved_only" | "all_uploads" }) {
   const updates: string[] = [];
   const attrNames: Record<string, string> = {};
   const attrValues: Record<string, any> = {};
@@ -563,6 +565,11 @@ async function updateEvent(eventId: string, body: { name?: string; date?: string
     updates.push("#r = :reqRev");
     attrNames["#r"] = "requiresReview";
     attrValues[":reqRev"] = body.requiresReview;
+  }
+  if (body.wallPolicy !== undefined) {
+    updates.push("#w = :wallPolicy");
+    attrNames["#w"] = "wallPolicy";
+    attrValues[":wallPolicy"] = body.wallPolicy;
   }
 
   if (updates.length === 0) return { success: true };

@@ -67,3 +67,39 @@ export type EventTemplateResponse = {
   publishedTemplate?: EventTemplate | null;
   published: boolean;
 };
+
+export type PhotoStatus = "pending" | "approved";
+
+export type WallPolicy = "approved_only" | "all_uploads";
+
+export type GuestUpload = {
+  PK: string;
+  eventId: string;
+  nickname: string;
+  guestKey?: string;
+  representativePhotoId?: string;
+  status: PhotoStatus;
+  createdAt: string;
+  greeting?: string;
+  s3Key?: string;
+  presignedUrl?: string;
+};
+
+export type WallCard = {
+  photoId: string;
+  guestKey: string;
+  nickname: string;
+  createdAt: string;
+  presignedUrl: string;
+  status: PhotoStatus;
+};
+
+export type WallPhotosResponse = {
+  eventId: string;
+  wallPolicy: WallPolicy;
+  photos: GuestUpload[];
+};
+
+export type MyGuestPhotosResponse = {
+  photos: GuestUpload[];
+};

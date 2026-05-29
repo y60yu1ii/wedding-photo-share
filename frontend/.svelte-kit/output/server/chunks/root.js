@@ -99,6 +99,7 @@ function unresolved_hydratable(key, stack) {
 }
 const BLOCK_OPEN = `<!--${HYDRATION_START}-->`;
 const BLOCK_CLOSE = `<!--${HYDRATION_END}-->`;
+const EMPTY_COMMENT = `<!---->`;
 function effect_update_depth_exceeded() {
   {
     throw new Error(`https://svelte.dev/e/effect_update_depth_exceeded`);
@@ -2666,6 +2667,13 @@ function render(component, options = {}) {
     options
   );
 }
+function head(hash, renderer, fn) {
+  renderer.head((renderer2) => {
+    renderer2.push(`<!--${hash}-->`);
+    renderer2.child(fn);
+    renderer2.push(EMPTY_COMMENT);
+  });
+}
 function attributes(attrs, css_hash, classes, styles, flags2 = 0) {
   if (styles) {
     attrs.style = to_style(attrs.style, styles);
@@ -2850,10 +2858,10 @@ class Renderer {
    * @param {(renderer: Renderer) => void} fn
    */
   head(fn) {
-    const head = new Renderer(this.global, this);
-    head.type = "head";
-    this.#out.push(head);
-    head.child(fn);
+    const head2 = new Renderer(this.global, this);
+    head2.type = "head";
+    this.#out.push(head2);
+    head2.child(fn);
   }
   /**
    * @param {Array<Promise<void>>} blockers
@@ -3048,7 +3056,7 @@ class Renderer {
    */
   option(attrs, body, css_hash, classes, styles, flags2, is_rich) {
     this.#out.push(`<option${attributes(attrs, css_hash, classes, styles, flags2)}`);
-    const close = (renderer, value, { head, body: body2 }) => {
+    const close = (renderer, value, { head: head2, body: body2 }) => {
       if (has_own_property.call(attrs, "value")) {
         value = attrs.value;
       }
@@ -3056,8 +3064,8 @@ class Renderer {
         renderer.#out.push(' selected=""');
       }
       renderer.#out.push(`>${body2}${is_rich ? "<!>" : ""}</option>`);
-      if (head) {
-        renderer.head((child) => child.push(head));
+      if (head2) {
+        renderer.head((child) => child.push(head2));
       }
     };
     if (typeof body === "function") {
@@ -3082,8 +3090,8 @@ class Renderer {
    */
   title(fn) {
     const path = this.get_path();
-    const close = (head) => {
-      this.global.set_title(head, path);
+    const close = (head2) => {
+      this.global.set_title(head2, path);
     };
     this.child((renderer) => {
       const r = new Renderer(renderer.global, renderer);
@@ -3417,13 +3425,13 @@ class Renderer {
     for (const cleanup of renderer.#collect_on_destroy()) {
       cleanup();
     }
-    let head = content.head + renderer.global.get_title();
+    let head2 = content.head + renderer.global.get_title();
     let body = content.body;
     for (const { hash, code } of renderer.global.css) {
-      head += `<style id="${hash}">${code}</style>`;
+      head2 += `<style id="${hash}">${code}</style>`;
     }
     return {
-      head,
+      head: head2,
       body,
       hashes: {
         script: renderer.global.csp.script_hashes
@@ -3999,6 +4007,7 @@ export {
   ensure_array_like as e,
   stringify as f,
   getContext as g,
+  head as h,
   root as r,
   safe_not_equal as s,
   unsubscribe_stores as u

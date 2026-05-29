@@ -315,6 +315,33 @@ describe("POST /admin/events (authenticated)", () => {
         });
     });
 });
+describe("GET /admin/events/{eventId}/template (authenticated)", () => {
+    test("returns event template payload", async () => {
+        mockSend
+            .mockResolvedValueOnce({
+            Item: {
+                PK: "EVENT-1",
+                SK: "METADATA",
+                template: {
+                    canvas: { width: 1920, height: 1080 },
+                    playback: { transition: "fade", intervalSeconds: 6 },
+                    layers: [],
+                    published: true,
+                },
+            },
+        })
+            .mockResolvedValueOnce({ Items: [] });
+        const event = {
+            requestContext: { http: { method: "GET", path: "/admin/events/EVENT-1/template" } },
+            headers: authHeaders(),
+        };
+        const result = await (0, index_1.handler)(event);
+        expect(result.statusCode).toBe(200);
+        const body = JSON.parse(result.body);
+        expect(body.template.playback.intervalSeconds).toBe(6);
+        expect(body.template.playback.transition).toBe("fade");
+    });
+});
 describe("Unknown routes", () => {
     test("returns 404 for unknown path", async () => {
         const event = {

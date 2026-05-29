@@ -29,11 +29,13 @@ declare module "$app/types" {
 	type MatcherParam<M> = M extends (param : string) => param is (infer U extends string) ? U : string;
 
 	export interface AppTypes {
-		RouteId(): "/" | "/admin" | "/admin/event" | "/admin/event/[eventId]" | "/admin/login" | "/event" | "/event/[eventId]" | "/event/[eventId]/upload" | "/myguest" | "/myguest/[eventId]";
+		RouteId(): "/" | "/admin" | "/admin/event" | "/admin/event/[eventId]" | "/admin/event/[eventId]/design" | "/admin/login" | "/event" | "/event/[eventId]" | "/event/[eventId]/upload" | "/event/[eventId]/wall" | "/myguest" | "/myguest/[eventId]";
 		RouteParams(): {
 			"/admin/event/[eventId]": { eventId: string };
+			"/admin/event/[eventId]/design": { eventId: string };
 			"/event/[eventId]": { eventId: string };
 			"/event/[eventId]/upload": { eventId: string };
+			"/event/[eventId]/wall": { eventId: string };
 			"/myguest/[eventId]": { eventId: string }
 		};
 		LayoutParams(): {
@@ -41,14 +43,16 @@ declare module "$app/types" {
 			"/admin": { eventId?: string | undefined };
 			"/admin/event": { eventId?: string | undefined };
 			"/admin/event/[eventId]": { eventId: string };
+			"/admin/event/[eventId]/design": { eventId: string };
 			"/admin/login": Record<string, never>;
 			"/event": { eventId?: string | undefined };
 			"/event/[eventId]": { eventId: string };
 			"/event/[eventId]/upload": { eventId: string };
+			"/event/[eventId]/wall": { eventId: string };
 			"/myguest": { eventId?: string | undefined };
 			"/myguest/[eventId]": { eventId: string }
 		};
-		Pathname(): "/" | "/admin" | `/admin/event/${string}` & {} | "/admin/login" | `/event/${string}` & {} | `/event/${string}/upload` & {} | `/myguest/${string}` & {};
+		Pathname(): "/" | "/admin" | `/admin/event/${string}` & {} | `/admin/event/${string}/design` & {} | "/admin/login" | `/event/${string}` & {} | `/event/${string}/upload` & {} | `/event/${string}/wall` & {} | `/myguest/${string}` & {};
 		ResolvedPathname(): `${"" | `/${string}`}${ReturnType<AppTypes['Pathname']>}`;
 		Asset(): string & {};
 	}

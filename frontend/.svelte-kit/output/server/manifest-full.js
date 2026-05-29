@@ -10,7 +10,7 @@ return {
 	assets: new Set([]),
 	mimeTypes: {},
 	_: {
-		client: {start:"_app/immutable/entry/start.BvujHkJE.js",app:"_app/immutable/entry/app.B3hKQlaL.js",imports:["_app/immutable/entry/start.BvujHkJE.js","_app/immutable/chunks/Borgb3Ym.js","_app/immutable/chunks/CvCkB6zw.js","_app/immutable/chunks/DSlezoYr.js","_app/immutable/entry/app.B3hKQlaL.js","_app/immutable/chunks/CvCkB6zw.js","_app/immutable/chunks/GO2K-3PN.js","_app/immutable/chunks/BgdJfpz6.js","_app/immutable/chunks/DSlezoYr.js","_app/immutable/chunks/yDtHEuEI.js","_app/immutable/chunks/BzSZ_oDP.js","_app/immutable/chunks/NBv8JYIx.js"],stylesheets:[],fonts:[],uses_env_dynamic_public:false},
+		client: {start:"_app/immutable/entry/start.BF2L9FdH.js",app:"_app/immutable/entry/app.D1SbtItw.js",imports:["_app/immutable/entry/start.BF2L9FdH.js","_app/immutable/chunks/BEN3pM2x.js","_app/immutable/chunks/COLhXQkC.js","_app/immutable/chunks/uv9fpvbg.js","_app/immutable/entry/app.D1SbtItw.js","_app/immutable/chunks/COLhXQkC.js","_app/immutable/chunks/BcbDwZAx.js","_app/immutable/chunks/R3IrhFSP.js","_app/immutable/chunks/uv9fpvbg.js","_app/immutable/chunks/CsOq5UmM.js","_app/immutable/chunks/DEfXgBFM.js","_app/immutable/chunks/7AMRQ4dm.js","_app/immutable/chunks/C-GlXlvi.js","_app/immutable/chunks/BzDpXOyO.js"],stylesheets:[],fonts:[],uses_env_dynamic_public:false},
 		nodes: [
 			__memo(() => import('./nodes/0.js')),
 			__memo(() => import('./nodes/1.js')),
@@ -20,7 +20,9 @@ return {
 			__memo(() => import('./nodes/5.js')),
 			__memo(() => import('./nodes/6.js')),
 			__memo(() => import('./nodes/7.js')),
-			__memo(() => import('./nodes/8.js'))
+			__memo(() => import('./nodes/8.js')),
+			__memo(() => import('./nodes/9.js')),
+			__memo(() => import('./nodes/10.js'))
 		],
 		remotes: {
 			
@@ -48,31 +50,45 @@ return {
 				endpoint: null
 			},
 			{
+				id: "/admin/event/[eventId]/design",
+				pattern: /^\/admin\/event\/([^/]+?)\/design\/?$/,
+				params: [{"name":"eventId","optional":false,"rest":false,"chained":false}],
+				page: { layouts: [0,], errors: [1,], leaf: 5 },
+				endpoint: null
+			},
+			{
 				id: "/admin/login",
 				pattern: /^\/admin\/login\/?$/,
 				params: [],
-				page: { layouts: [0,], errors: [1,], leaf: 5 },
+				page: { layouts: [0,], errors: [1,], leaf: 6 },
 				endpoint: null
 			},
 			{
 				id: "/event/[eventId]",
 				pattern: /^\/event\/([^/]+?)\/?$/,
 				params: [{"name":"eventId","optional":false,"rest":false,"chained":false}],
-				page: { layouts: [0,], errors: [1,], leaf: 6 },
+				page: { layouts: [0,], errors: [1,], leaf: 7 },
 				endpoint: null
 			},
 			{
 				id: "/event/[eventId]/upload",
 				pattern: /^\/event\/([^/]+?)\/upload\/?$/,
 				params: [{"name":"eventId","optional":false,"rest":false,"chained":false}],
-				page: { layouts: [0,], errors: [1,], leaf: 7 },
+				page: { layouts: [0,], errors: [1,], leaf: 8 },
+				endpoint: null
+			},
+			{
+				id: "/event/[eventId]/wall",
+				pattern: /^\/event\/([^/]+?)\/wall\/?$/,
+				params: [{"name":"eventId","optional":false,"rest":false,"chained":false}],
+				page: { layouts: [0,], errors: [1,], leaf: 9 },
 				endpoint: null
 			},
 			{
 				id: "/myguest/[eventId]",
 				pattern: /^\/myguest\/([^/]+?)\/?$/,
 				params: [{"name":"eventId","optional":false,"rest":false,"chained":false}],
-				page: { layouts: [0,], errors: [1,], leaf: 8 },
+				page: { layouts: [0,], errors: [1,], leaf: 10 },
 				endpoint: null
 			}
 		],

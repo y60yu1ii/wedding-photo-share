@@ -10,6 +10,7 @@
 
   let queue = $state<any[]>([]);
   let nickname = $state("");
+  let guestKey = $state("");
   let greeting = $state("");
   let uploading = $state(false);
   let allDone = $state(false);
@@ -19,6 +20,9 @@
   onMount(() => {
     if (typeof localStorage !== "undefined") {
       nickname = localStorage.getItem("guest_nickname") || "";
+      const storedGuestKey = localStorage.getItem(`guest_key:${eventId}`);
+      guestKey = storedGuestKey || crypto.randomUUID();
+      localStorage.setItem(`guest_key:${eventId}`, guestKey);
     }
   });
 
@@ -117,7 +121,7 @@
           });
 
           // 4. Confirm upload + greeting message
-          await upload.confirm(eventId, photoId, nickname.trim(), uploadKey, greeting.trim());
+          await upload.confirm(eventId, photoId, nickname.trim(), uploadKey, guestKey, greeting.trim());
           item.status = "completed";
           item.progress = 100;
         } catch (e: any) {
