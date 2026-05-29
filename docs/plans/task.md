@@ -1,8 +1,10 @@
 | Task | Status | Description |
 | --- | --- | --- |
-| Explore project context | Completed | Check files, docs, and codebase regarding deletion, review flow, and file formats |
-| Ask clarifying questions | Completed | Ask questions one at a time to clarify requirements and constraints |
-| Propose 2-3 approaches | Completed | Brainstorm and present architectural options with trade-offs |
-| Present design | Completed | Present design sections and get user approval |
-| Write design doc | Completed | Save design to `docs/plans/2026-05-29-wedding-management-and-upload-improvements-design.md` and commit |
-| Transition to implementation | Completed | Invoke `writing-plans` skill to create the implementation plan |
+| Task 1: CDK Architecture and Permissions Update | Completed | Update CloudFront policies, grant S3 read permission, and configure environment variables. |
+| Task 2: Physical Cascade Deletion for Admin Lambda | In Progress | Refactor deleteEvent to physically delete event, keypairs, photos, and S3 objects. |
+| Task 3: Admin Real Photo Preview in Dashboard | Pending | Instantiated S3Client and generate presigned GET URLs for admin photo list. |
+| Task 4: Optional Photo Review Support (requiresReview Toggle) | Pending | Support requiresReview configuration on creation, PATCH update, and confirm upload status. |
+| Task 5: Comprehensive MIME Type and Unicode Nickname Validation | Pending | Allow image/* uploads and any Unicode combination for guest nicknames excluding HTML tags. |
+| Task 6: Frontend API Client Update | Pending | Add PATCH /admin/events/{id} route support to frontend events client. |
+| Task 7: Frontend UI Review Option Implementation | Pending | Add requiresReview checkbox to creation form and dynamic toggle button to details page. |
+| Task 8: Rebuild and Final Verification | Pending | Compile typescript, rebuild frontend, and run full test suites. |
