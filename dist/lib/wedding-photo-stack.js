@@ -155,7 +155,8 @@ class WeddingPhotoStack extends cdk.Stack {
         this.restApi = new apigwv2.HttpApi(this, "RestApi", {
             apiName: `wedding-photo-api-${STAGE}`,
             corsPreflight: {
-                allowOrigins: ["*"],
+                allowCredentials: true,
+                allowOrigins: ["https://wedding.fishare.de"],
                 allowMethods: [
                     apigwv2.CorsHttpMethod.GET,
                     apigwv2.CorsHttpMethod.POST,
@@ -164,7 +165,7 @@ class WeddingPhotoStack extends cdk.Stack {
                     apigwv2.CorsHttpMethod.DELETE,
                     apigwv2.CorsHttpMethod.OPTIONS,
                 ],
-                allowHeaders: ["*"],
+                allowHeaders: ["content-type", "authorization", "origin", "x-requested-with", "accept"],
                 maxAge: cdk.Duration.days(1),
             },
         });
