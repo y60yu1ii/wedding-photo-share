@@ -47198,19 +47198,20 @@ function isValidNickname(nickname) {
   return /^[a-zA-Z0-9 ]{2,20}$/.test(nickname);
 }
 async function broadcastNewPhoto(eventId, photoId, s3Key) {
-  const wsUrl = process.env.WEBSOCKET_API_URL;
-  if (!wsUrl) return;
   const connections = await dynamo.send(
     new import_lib_dynamodb.QueryCommand({
       TableName: process.env.CONNECTIONS_TABLE,
       KeyConditionExpression: "PK = :pk",
-      ExpressionAttributeValues: { ":pk": `EVENT#${eventId}` }
+      ExpressionAttributeValues: { ":pk": `EVENT-${eventId}` }
     })
   );
+  const items = connections.Items ?? [];
+  const wsUrl = items[0]?.wsEndpoint ?? process.env.WEBSOCKET_API_URL;
+  if (!wsUrl || items.length === 0) return;
   const wsClient = new import_client_apigatewaymanagementapi.ApiGatewayManagementApiClient({ endpoint: wsUrl });
   const message = JSON.stringify({ type: "new_photo", photoId, s3Key, uploadedAt: (/* @__PURE__ */ new Date()).toISOString() });
   await Promise.allSettled(
-    (connections.Items ?? []).map(
+    items.map(
       (conn) => wsClient.send(
         new import_client_apigatewaymanagementapi.PostToConnectionCommand({
           ConnectionId: conn.connectionId,
@@ -47254,7 +47255,7 @@ async function presignUpload(eventId, filename, contentType, fileSize, uploadKey
         contentType,
         s3Key,
         status: "pending",
-        nickname: "",
+        nickname: "__pending__",
         uploadedAt: (/* @__PURE__ */ new Date()).toISOString()
       },
       // Conditional write: fail if PK already exists (duplicate)
@@ -47280,7 +47281,7 @@ async function confirmUpload(photoId, eventId, nickname, uploadKey) {
       ExpressionAttributeNames: { "#status": "status" },
       ExpressionAttributeValues: {
         ":n": cleanNickname,
-        ":s": "active",
+        ":s": "pending",
         ":c": (/* @__PURE__ */ new Date()).toISOString()
       },
       ConditionExpression: "attribute_exists(PK) AND attribute_exists(SK)"
@@ -47297,20 +47298,35 @@ async function confirmUpload(photoId, eventId, nickname, uploadKey) {
   if (s3Key) {
     await broadcastNewPhoto(eventId, photoId, s3Key);
   }
-  return { statusCode: 200, body: JSON.stringify({ photoId, status: "active" }) };
+  return { statusCode: 200, body: JSON.stringify({ photoId, status: "pending" }) };
 }
 async function handler(event) {
   const method = event.requestContext?.http?.method ?? event.httpMethod ?? "POST";
   const path = event.requestContext?.http?.path ?? event.path ?? "";
+  if (method === "OPTIONS") {
+    return {
+      statusCode: 204,
+      headers: {
+        "Access-Control-Allow-Origin": "https://wedding.fishare.de",
+        "Access-Control-Allow-Methods": "GET,POST,PUT,DELETE,OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type,Authorization,Origin,X-Requested-With,Accept",
+        "Access-Control-Allow-Credentials": "true",
+        "Access-Control-Max-Age": "86400"
+      },
+      body: ""
+    };
+  }
   const queryKey = event.queryStringParameters?.key ?? "";
   const body = JSON.parse(event.body ?? "{}");
   try {
     if (path === "/upload/presign" && method === "POST") {
       const { eventId, filename, contentType, fileSize } = body;
+      console.log("presign: eventId=" + eventId + " filename=" + filename + " contentType=" + contentType + " fileSize=" + (fileSize ?? 0) + " key=" + queryKey);
       if (!eventId || !filename || !contentType) {
         return { statusCode: 400, body: JSON.stringify({ error: "missing fields" }) };
       }
       const result = await presignUpload(eventId, filename, contentType, fileSize ?? 0, queryKey);
+      console.log("presign: result=" + JSON.stringify(result).slice(0, 100));
       return result;
     }
     if (path === "/upload/confirm" && method === "POST") {
