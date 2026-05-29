@@ -6,12 +6,15 @@ import {
   QueryCommand,
   UpdateCommand,
   ScanCommand,
+  DeleteCommand,
 } from "@aws-sdk/lib-dynamodb";
 import { SecretsManagerClient, GetSecretValueCommand } from "@aws-sdk/client-secrets-manager";
+import { S3Client, DeleteObjectsCommand, GetObjectCommand } from "@aws-sdk/client-s3";
 import { SignJWT, jwtVerify } from "jose";
 
 const dynamo = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 const secrets = new SecretsManagerClient({});
+const s3 = new S3Client({});
 
 interface Env {
   EVENTS_TABLE: string;
@@ -183,8 +186,7 @@ async function getEventWithKeys(eventId: string) {
 }
 
 async function deleteEvent(eventId: string) {
-  // Delete all photos from S3 (would need separate Lambda for this)
-  // Delete all keypairs via Scan (no GSI on keypairs table)
+  // 1. Find all keypairs associated with the event
   const keypairsResp = await dynamo.send(
     new ScanCommand({
       TableName: process.env.KEYPAIRS_TABLE!,
@@ -193,21 +195,68 @@ async function deleteEvent(eventId: string) {
     })
   );
 
-  await Promise.all([
-    dynamo.send(new UpdateCommand({
-      TableName: process.env.EVENTS_TABLE!,
-      Key: { PK: eventId, SK: "METADATA" },
-      UpdateExpression: "SET #s = :s",
-      ExpressionAttributeNames: { "#s": "status" },
-      ExpressionAttributeValues: { ":s": "archived" },
-    })),
-    ...(keypairsResp.Items ?? []).map((k: any) =>
-      dynamo.send(new PutCommand({
-        TableName: process.env.KEYPAIRS_TABLE!,
-        Item: { ...k, _deleted: true },
-      }))
-    ),
-  ]);
+  // 2. Find all photos associated with the event
+  const photosResp = await dynamo.send(
+    new ScanCommand({
+      TableName: process.env.PHOTOS_TABLE!,
+      FilterExpression: "eventId = :eid",
+      ExpressionAttributeValues: { ":eid": eventId },
+    })
+  );
+
+  const deletes: Promise<any>[] = [];
+
+  // 3. Physically delete all objects from S3
+  const photoItems = photosResp.Items ?? [];
+  if (photoItems.length > 0) {
+    const s3Keys = photoItems.map((p: any) => p.s3Key).filter(Boolean);
+    if (s3Keys.length > 0) {
+      deletes.push(
+        s3.send(
+          new DeleteObjectsCommand({
+            Bucket: process.env.PHOTO_BUCKET!,
+            Delete: { Objects: s3Keys.map((k) => ({ Key: k })) },
+          })
+        ).catch((err) => console.error("Failed to delete S3 photos:", err))
+      );
+    }
+  }
+
+  // 4. Physically delete the wedding event metadata
+  deletes.push(
+    dynamo.send(
+      new DeleteCommand({
+        TableName: process.env.EVENTS_TABLE!,
+        Key: { PK: eventId, SK: "METADATA" },
+      })
+    )
+  );
+
+  // 5. Physically delete all keypairs from KeypairsTable
+  for (const k of (keypairsResp.Items ?? [])) {
+    deletes.push(
+      dynamo.send(
+        new DeleteCommand({
+          TableName: process.env.KEYPAIRS_TABLE!,
+          Key: { PK: k.PK, SK: k.SK },
+        })
+      )
+    );
+  }
+
+  // 6. Physically delete all photo records from PhotosTable
+  for (const p of photoItems) {
+    deletes.push(
+      dynamo.send(
+        new DeleteCommand({
+          TableName: process.env.PHOTOS_TABLE!,
+          Key: { PK: p.PK, SK: p.SK },
+        })
+      )
+    );
+  }
+
+  await Promise.all(deletes);
 }
 
 async function approvePhoto(photoId: string) {

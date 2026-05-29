@@ -7,6 +7,18 @@
 
 const mockSend = jest.fn();
 const mockSecretsSend = jest.fn();
+const mockS3Send = jest.fn();
+
+jest.mock("@aws-sdk/client-s3", () => ({
+  S3Client: jest.fn().mockImplementation(() => ({ send: mockS3Send })),
+  GetObjectCommand: jest.fn().mockImplementation((i: any) => ({ input: i })),
+  DeleteObjectCommand: jest.fn().mockImplementation((i: any) => ({ input: i })),
+  DeleteObjectsCommand: jest.fn().mockImplementation((i: any) => ({ input: i })),
+}));
+
+jest.mock("@aws-sdk/s3-request-presigner", () => ({
+  getSignedUrl: jest.fn().mockResolvedValue("https://mock-presigned-url"),
+}));
 
 jest.mock("@aws-sdk/client-dynamodb", () => ({
   DynamoDBClient: jest.fn().mockImplementation(() => ({})),
@@ -21,6 +33,7 @@ jest.mock("@aws-sdk/lib-dynamodb", () => ({
   QueryCommand: jest.fn().mockImplementation((i: any) => ({ input: i })),
   UpdateCommand: jest.fn().mockImplementation((i: any) => ({ input: i })),
   ScanCommand: jest.fn().mockImplementation((i: any) => ({ input: i })),
+  DeleteCommand: jest.fn().mockImplementation((i: any) => ({ input: i })),
 }));
 
 jest.mock("@aws-sdk/client-secrets-manager", () => ({
@@ -61,6 +74,7 @@ jest.mock("jose", () => {
 // Stash mocks on globalThis so imports below can reference them after hoisting
 (globalThis as any).__mockSend = mockSend;
 (globalThis as any).__mockSecretsSend = mockSecretsSend;
+(globalThis as any).__mockS3Send = mockS3Send;
 
 import { handler } from "../../lambda/admin/index";
 
@@ -70,6 +84,7 @@ beforeEach(() => {
   process.env.EVENTS_TABLE = "events-table";
   process.env.KEYPAIRS_TABLE = "keypairs-table";
   process.env.PHOTOS_TABLE = "photos-table";
+  process.env.PHOTO_BUCKET = "photo-bucket";
   process.env.JWT_SECRET_NAME = "jwt-secret-name";
   process.env.STAGE = "prod";
   process.env.ADMIN_USER = "admin";
@@ -198,6 +213,34 @@ describe("POST /admin/events (authenticated)", () => {
 
     // Should have been called 3 times: 1 event + 2 keypairs
     expect(mockSend).toHaveBeenCalledTimes(3);
+  });
+
+  describe("DELETE /admin/events/{eventId} (authenticated cascade)", () => {
+    test("performs physical cascade deletion", async () => {
+      // 1. Scan keypairs returns 1 item
+      // 2. Scan photos returns 1 item
+      mockSend
+        .mockResolvedValueOnce({ Items: [{ PK: "KEY#1", SK: "METADATA", eventId: "EVENT-1" }] }) // keypairs scan
+        .mockResolvedValueOnce({ Items: [{ PK: "PHOTO#1", SK: "METADATA", eventId: "EVENT-1", s3Key: "prod/EVENT-1/PHOTO#1.jpg" }] }) // photos scan
+        .mockResolvedValueOnce({}) // delete event metadata
+        .mockResolvedValueOnce({}) // delete keypairs item
+        .mockResolvedValueOnce({}); // delete photos item
+      mockS3Send.mockResolvedValue({}); // S3 delete objects
+
+      const event = {
+        requestContext: { http: { method: "DELETE", path: "/admin/events/EVENT-1" } },
+        headers: authHeaders(),
+      };
+
+      const result = await handler(event);
+      expect(result.statusCode).toBe(200);
+      expect(JSON.parse(result.body).success).toBe(true);
+
+      // Verify DynamoDB commands were sent (2 scans + 3 deletes = 5 times)
+      expect(mockSend).toHaveBeenCalledTimes(5);
+      // Verify S3 delete was called
+      expect(mockS3Send).toHaveBeenCalled();
+    });
   });
 });
 
