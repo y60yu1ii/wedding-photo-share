@@ -1,0 +1,28 @@
+# Compiled output
+/dist
+/bin
+/cdk.out
+/cdk-outputs.json
+/frontend/.svelte-kit
+/frontend/build
+/frontend/node_modules
+
+# Dependencies
+/node_modules
+
+# Environment
+.env*
+!.env.example
+!.env.production
+
+# IDE and OS
+.DS_Store
+.vscode/
+.idea/
+
+# Local worktrees
+/.worktrees/
+/worktrees/
+
+# Antigravity logs & metadata
+/.omx/
