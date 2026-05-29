@@ -46400,7 +46400,7 @@ var require_dist_cjs33 = __commonJS({
       return [endpoints.getEndpointPlugin(config2, Command2.getEndpointParameterInstructions())];
     }).s("AmazonS3", "DeleteBucketWebsite", {}).n("S3Client", "DeleteBucketWebsiteCommand").sc(schemas_0.DeleteBucketWebsite$).build() {
     };
-    var DeleteObjectCommand = class extends client.Command.classBuilder().ep({
+    var DeleteObjectCommand2 = class extends client.Command.classBuilder().ep({
       ...commonParams5,
       Bucket: { type: "contextParams", name: "Bucket" },
       Key: { type: "contextParams", name: "Key" }
@@ -47501,7 +47501,7 @@ var require_dist_cjs33 = __commonJS({
       DeleteBucketReplicationCommand,
       DeleteBucketTaggingCommand,
       DeleteBucketWebsiteCommand,
-      DeleteObjectCommand,
+      DeleteObjectCommand: DeleteObjectCommand2,
       DeleteObjectsCommand: DeleteObjectsCommand2,
       DeleteObjectTaggingCommand,
       DeletePublicAccessBlockCommand,
@@ -48056,7 +48056,7 @@ var require_dist_cjs33 = __commonJS({
     exports2.DeleteBucketTaggingCommand = DeleteBucketTaggingCommand;
     exports2.DeleteBucketWebsiteCommand = DeleteBucketWebsiteCommand;
     exports2.DeleteMarkerReplicationStatus = DeleteMarkerReplicationStatus;
-    exports2.DeleteObjectCommand = DeleteObjectCommand;
+    exports2.DeleteObjectCommand = DeleteObjectCommand2;
     exports2.DeleteObjectTaggingCommand = DeleteObjectTaggingCommand;
     exports2.DeleteObjectsCommand = DeleteObjectsCommand2;
     exports2.DeletePublicAccessBlockCommand = DeletePublicAccessBlockCommand;
@@ -50663,6 +50663,70 @@ async function approvePhoto(photoId) {
   }
   return { photoId, status: "approved" };
 }
+async function broadcastDeletePhoto(eventId, photoId) {
+  const connections = await dynamo.send(
+    new import_lib_dynamodb.QueryCommand({
+      TableName: process.env.CONNECTIONS_TABLE,
+      KeyConditionExpression: "PK = :pk",
+      ExpressionAttributeValues: { ":pk": `EVENT-${eventId}` }
+    })
+  );
+  const items = connections.Items ?? [];
+  if (items.length === 0) return;
+  const wsUrl = items[0]?.wsEndpoint ?? process.env.WEBSOCKET_API_URL;
+  if (!wsUrl) return;
+  const wsClient = new import_client_apigatewaymanagementapi.ApiGatewayManagementApiClient({ endpoint: wsUrl });
+  const message2 = JSON.stringify({
+    type: "delete_photo",
+    photoId
+  });
+  await Promise.allSettled(
+    items.map(
+      (conn) => wsClient.send(
+        new import_client_apigatewaymanagementapi.PostToConnectionCommand({
+          ConnectionId: conn.connectionId,
+          Data: Buffer.from(message2)
+        })
+      )
+    )
+  );
+}
+async function deletePhoto(photoId) {
+  const resp = await dynamo.send(
+    new import_lib_dynamodb.GetCommand({
+      TableName: process.env.PHOTOS_TABLE,
+      Key: { PK: photoId, SK: "METADATA" }
+    })
+  );
+  if (!resp.Item) return null;
+  const photo = resp.Item;
+  const eventId = photo.eventId;
+  const s3Key = photo.s3Key;
+  const deletes = [];
+  if (s3Key) {
+    deletes.push(
+      s3.send(
+        new import_client_s3.DeleteObjectCommand({
+          Bucket: process.env.PHOTO_BUCKET,
+          Key: s3Key
+        })
+      ).catch((err2) => console.error("Failed to delete S3 photo object:", err2))
+    );
+  }
+  deletes.push(
+    dynamo.send(
+      new import_lib_dynamodb.DeleteCommand({
+        TableName: process.env.PHOTOS_TABLE,
+        Key: { PK: photoId, SK: "METADATA" }
+      })
+    )
+  );
+  await Promise.all(deletes);
+  if (eventId) {
+    await broadcastDeletePhoto(eventId, photoId);
+  }
+  return { photoId };
+}
 async function verifyToken(token) {
   try {
     const secret = await getJwtSecret();
@@ -50771,6 +50835,12 @@ async function handler(event) {
       const photoId = path.split("/")[3];
       const result = await approvePhoto(photoId);
       return res(200, result);
+    }
+    if (path.match(/^\/admin\/photos\/[^/]+$/) && method === "DELETE") {
+      const photoId = path.split("/")[3];
+      const result = await deletePhoto(photoId);
+      if (!result) return res(404, { error: "Photo not found" });
+      return res(200, { success: true });
     }
     if (path.match(/^\/admin\/events\/[^/]+\/photos$/) && method === "GET") {
       const eventId = decodeURIComponent(path.split("/")[3]);

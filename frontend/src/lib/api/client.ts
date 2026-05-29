@@ -114,6 +114,13 @@ export const events = {
     });
     if (!res.ok) throw new Error("審核失敗");
   },
+  async deletePhoto(photoId: string) {
+    const res = await request(`/admin/photos/${encodeURIComponent(photoId)}`, {
+      method: "DELETE",
+      token: true,
+    });
+    if (!res.ok) throw new Error("刪除照片失敗");
+  },
   async remove(eventId: string) {
     const res = await request(`/admin/events/${eventId}`, {
       method: "DELETE",

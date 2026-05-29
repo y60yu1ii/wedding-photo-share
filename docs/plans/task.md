@@ -8,3 +8,7 @@
 | Task 6: Frontend API Client Update | Completed | Add PATCH /admin/events/{id} route support to frontend events client. |
 | Task 7: Frontend UI Review Option Implementation | Completed | Add requiresReview checkbox to creation form and dynamic toggle button to details page. |
 | Task 8: Rebuild and Final Verification | Completed | Compile typescript, rebuild frontend, and run full test suites. |
+| Task 9: Implement Photo Deletion API | Completed | Create deletePhoto helper in Admin Lambda, physically delete from S3 & DynamoDB, broadcast WS delete_photo event, and bind to DELETE /admin/photos/{photoId} route. |
+| Task 10: Update Frontend API Client for Photo Deletion | Completed | Add deletePhoto method using DELETE /admin/photos/{photoId} to client.ts. |
+| Task 11: Upgrade Admin Event Details UI with WebSocket & Deletion | Completed | Establish WebSocket on mount, support dynamic hot-reloading list on WS message, add connection indicator, and implement multi-action photo cards with "下架並刪除" button. |
+| Task 12: Rebuild & Final Verification | Completed | Compile Lambda bundles, rebuild frontend, and run all Jest unit tests (50/50 passing). |

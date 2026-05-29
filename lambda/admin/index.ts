@@ -551,6 +551,14 @@ export async function handler(event: any) {
       return res(200, result);
     }
 
+    // DELETE /admin/photos/{photoId}
+    if (path.match(/^\/admin\/photos\/[^/]+$/) && method === "DELETE") {
+      const photoId = path.split("/")[3];
+      const result = await deletePhoto(photoId);
+      if (!result) return res(404, { error: "Photo not found" });
+      return res(200, { success: true });
+    }
+
     // GET /admin/events/{eventId}/photos
     if (path.match(/^\/admin\/events\/[^/]+\/photos$/) && method === "GET") {
       const eventId = decodeURIComponent(path.split("/")[3]);
