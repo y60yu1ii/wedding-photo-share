@@ -6,7 +6,7 @@ import {
   UpdateCommand,
   GetCommand,
 } from "@aws-sdk/lib-dynamodb";
-import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { ApiGatewayManagementApiClient, PostToConnectionCommand } from "@aws-sdk/client-apigatewaymanagementapi";
 
@@ -86,11 +86,18 @@ async function broadcastNewPhoto(eventId: string, photoId: string, s3Key: string
   const wsUrl = items[0]?.wsEndpoint ?? process.env.WEBSOCKET_API_URL;
   if (!wsUrl || items.length === 0) return;
 
+  // Generate 15-minute S3 GET presigned URL for slideshow client
+  const s3GetCmd = new GetObjectCommand({
+    Bucket: process.env.PHOTO_BUCKET!,
+    Key: s3Key,
+  });
+  const presignedUrl = await getSignedUrl(s3, s3GetCmd, { expiresIn: 900 });
+
   const wsClient = new ApiGatewayManagementApiClient({ endpoint: wsUrl });
   const message = JSON.stringify({
     type: "new_photo",
     photoId,
-    s3Key,
+    presignedUrl,
     nickname,
     greeting,
     uploadedAt: new Date().toISOString()

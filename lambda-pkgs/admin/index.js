@@ -50621,11 +50621,16 @@ async function broadcastNewPhoto(eventId, photoId, s3Key, nickname, greeting) {
   const items = connections.Items ?? [];
   const wsUrl = items[0]?.wsEndpoint ?? process.env.WEBSOCKET_API_URL;
   if (!wsUrl || items.length === 0) return;
+  const s3GetCmd = new import_client_s3.GetObjectCommand({
+    Bucket: process.env.PHOTO_BUCKET,
+    Key: s3Key
+  });
+  const presignedUrl = await (0, import_s3_request_presigner.getSignedUrl)(s3, s3GetCmd, { expiresIn: 900 });
   const wsClient = new import_client_apigatewaymanagementapi.ApiGatewayManagementApiClient({ endpoint: wsUrl });
   const message2 = JSON.stringify({
     type: "new_photo",
     photoId,
-    s3Key,
+    presignedUrl,
     nickname,
     greeting,
     uploadedAt: (/* @__PURE__ */ new Date()).toISOString()

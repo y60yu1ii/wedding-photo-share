@@ -44766,7 +44766,7 @@ var require_dist_cjs32 = __commonJS({
       ];
     }).s("AmazonS3", "GetObjectAttributes", {}).n("S3Client", "GetObjectAttributesCommand").sc(schemas_0.GetObjectAttributes$).build() {
     };
-    var GetObjectCommand = class extends client.Command.classBuilder().ep({
+    var GetObjectCommand2 = class extends client.Command.classBuilder().ep({
       ...commonParams5,
       Bucket: { type: "contextParams", name: "Bucket" },
       Key: { type: "contextParams", name: "Key" }
@@ -45580,7 +45580,7 @@ var require_dist_cjs32 = __commonJS({
       GetBucketTaggingCommand,
       GetBucketVersioningCommand,
       GetBucketWebsiteCommand,
-      GetObjectCommand,
+      GetObjectCommand: GetObjectCommand2,
       GetObjectAclCommand,
       GetObjectAttributesCommand,
       GetObjectLegalHoldCommand,
@@ -46146,7 +46146,7 @@ var require_dist_cjs32 = __commonJS({
     exports2.GetBucketWebsiteCommand = GetBucketWebsiteCommand;
     exports2.GetObjectAclCommand = GetObjectAclCommand;
     exports2.GetObjectAttributesCommand = GetObjectAttributesCommand;
-    exports2.GetObjectCommand = GetObjectCommand;
+    exports2.GetObjectCommand = GetObjectCommand2;
     exports2.GetObjectLegalHoldCommand = GetObjectLegalHoldCommand;
     exports2.GetObjectLockConfigurationCommand = GetObjectLockConfigurationCommand;
     exports2.GetObjectRetentionCommand = GetObjectRetentionCommand;
@@ -47202,11 +47202,16 @@ async function broadcastNewPhoto(eventId, photoId, s3Key, nickname, greeting) {
   const items = connections.Items ?? [];
   const wsUrl = items[0]?.wsEndpoint ?? process.env.WEBSOCKET_API_URL;
   if (!wsUrl || items.length === 0) return;
+  const s3GetCmd = new import_client_s3.GetObjectCommand({
+    Bucket: process.env.PHOTO_BUCKET,
+    Key: s3Key
+  });
+  const presignedUrl = await (0, import_s3_request_presigner.getSignedUrl)(s3, s3GetCmd, { expiresIn: 900 });
   const wsClient = new import_client_apigatewaymanagementapi.ApiGatewayManagementApiClient({ endpoint: wsUrl });
   const message = JSON.stringify({
     type: "new_photo",
     photoId,
-    s3Key,
+    presignedUrl,
     nickname,
     greeting,
     uploadedAt: (/* @__PURE__ */ new Date()).toISOString()
