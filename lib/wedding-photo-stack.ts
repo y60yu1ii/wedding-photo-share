@@ -185,6 +185,7 @@ export class WeddingPhotoStack extends cdk.Stack {
         KEYPAIRS_TABLE: this.keypairsTable.tableName,
         PHOTOS_TABLE: this.photosTable.tableName,
         JWT_SECRET_NAME: jwtSecret.secretName,
+        PHOTO_BUCKET: this.photoBucket.bucketName,
         STAGE,
       },
     });
@@ -198,6 +199,7 @@ export class WeddingPhotoStack extends cdk.Stack {
         KEYPAIRS_TABLE: this.keypairsTable.tableName,
         CONNECTIONS_TABLE: this.connectionsTable.tableName,
         PHOTO_BUCKET: this.photoBucket.bucketName,
+        EVENTS_TABLE: this.eventsTable.tableName,
         WEBSOCKET_API_URL: wsApiUrl,
         STAGE,
       },
@@ -247,6 +249,7 @@ export class WeddingPhotoStack extends cdk.Stack {
     }
     this.photoBucket.grantReadWrite(this.uploadLambda);
     this.photoBucket.grantRead(this.slideshowLambda);
+    this.photoBucket.grantRead(this.adminLambda);
     this.photoBucket.grantReadWrite(this.myguestLambda);
     jwtSecret.grantRead(this.adminLambda);
     this.dlq.grantSendMessages(this.uploadLambda);
@@ -462,6 +465,8 @@ export class WeddingPhotoStack extends cdk.Stack {
         ),
         viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
         allowedMethods: cloudfront.AllowedMethods.ALLOW_ALL,
+        cachePolicy: cloudfront.CachePolicy.CACHING_DISABLED,
+        originRequestPolicy: cloudfront.OriginRequestPolicy.ALL_VIEWER_EXCEPT_HOST_HEADER,
         functionAssociations: [{
           function: corsFunction,
           eventType: cloudfront.FunctionEventType.VIEWER_RESPONSE,
