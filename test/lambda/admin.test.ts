@@ -271,8 +271,8 @@ describe("POST /admin/events (authenticated)", () => {
     });
   });
 
-  describe("PATCH /admin/events/{eventId} (authenticated)", () => {
-    test("successfully updates event properties including requiresReview", async () => {
+describe("PATCH /admin/events/{eventId} (authenticated)", () => {
+  test("successfully updates event properties including requiresReview", async () => {
       mockSend.mockResolvedValueOnce({}); // UpdateCommand response
 
       const event = {
@@ -370,6 +370,36 @@ describe("POST /admin/events (authenticated)", () => {
       const result = await handler(event);
       expect(result.statusCode).toBe(404);
     });
+  });
+});
+
+describe("GET /admin/events/{eventId}/template (authenticated)", () => {
+  test("returns event template payload", async () => {
+    mockSend
+      .mockResolvedValueOnce({
+        Item: {
+          PK: "EVENT-1",
+          SK: "METADATA",
+          template: {
+            canvas: { width: 1920, height: 1080 },
+            playback: { transition: "fade", intervalSeconds: 6 },
+            layers: [],
+            published: true,
+          },
+        },
+      })
+      .mockResolvedValueOnce({ Items: [] });
+
+    const event = {
+      requestContext: { http: { method: "GET", path: "/admin/events/EVENT-1/template" } },
+      headers: authHeaders(),
+    };
+
+    const result = await handler(event);
+    expect(result.statusCode).toBe(200);
+    const body = JSON.parse(result.body as string);
+    expect(body.template.playback.intervalSeconds).toBe(6);
+    expect(body.template.playback.transition).toBe("fade");
   });
 });
 

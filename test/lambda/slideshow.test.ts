@@ -70,3 +70,31 @@ describe("GET /slideshow/presign/:photoId", () => {
     expect(body.presignedUrl).toBe("https://signed-photo-url");
   });
 });
+
+describe("GET /slideshow/template", () => {
+  test("returns published template for event", async () => {
+    mockDdbSend.mockResolvedValueOnce({
+      Item: {
+        PK: "EVENT-1",
+        SK: "METADATA",
+        template: {
+          canvas: { width: 1920, height: 1080 },
+          playback: { transition: "slide", intervalSeconds: 8 },
+          layers: [],
+          published: true,
+        },
+      },
+    });
+
+    const event = {
+      requestContext: { http: { method: "GET", path: "/slideshow/template" } },
+      queryStringParameters: { eventId: "EVENT-1" },
+    };
+
+    const result = await handler(event);
+    expect(result.statusCode).toBe(200);
+    const body = JSON.parse(result.body);
+    expect(body.template.playback.transition).toBe("slide");
+    expect(body.template.playback.intervalSeconds).toBe(8);
+  });
+});

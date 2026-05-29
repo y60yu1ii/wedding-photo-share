@@ -5,7 +5,7 @@
   import { upload } from "$lib/api/client";
   import { compressImage } from "$lib/utils/compressor";
 
-  const eventId = $derived($page.params.eventId);
+  const eventId = $derived($page.params.eventId ?? "");
   const uploadKey = $derived($page.url.searchParams.get("key") ?? "");
 
   let queue = $state<any[]>([]);

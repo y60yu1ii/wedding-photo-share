@@ -3,7 +3,7 @@
   import { page } from "$app/stores";
   import { myguest } from "$lib/api/client";
 
-  const eventId = $derived($page.params.eventId);
+  const eventId = $derived($page.params.eventId ?? "");
 
   let photos = $state<any[]>([]);
   let loading = $state(true);

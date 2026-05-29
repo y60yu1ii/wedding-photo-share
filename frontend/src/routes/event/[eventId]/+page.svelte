@@ -1,53 +1,92 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { page } from "$app/stores";
-  import { slideshow } from "$lib/api/client";
+  import { slideshow, templates } from "$lib/api/client";
+  import type { EventTemplate, TemplateLayer } from "$lib/api/types";
 
-  const eventId = $derived($page.params.eventId);
+  const eventId = $derived($page.params.eventId ?? "");
   const wsUrl = import.meta.env.VITE_WS_URL;
 
   let event = $state<any>({});
   let photos = $state<any[]>([]);
+  let template = $state<EventTemplate | null>(null);
   let loading = $state(true);
   
   // Slideshow Modes
   let isPresentationMode = $state(false);
   let activeIndex = $state(0);
   let isFullscreen = $state(false);
+  let transitionVersion = $state(0);
   
   // Danmaku Queue
   let danmakus = $state<{ id: string; nickname: string; greeting: string; track: number }[]>([]);
   
   let socket: WebSocket;
   let slideshowInterval: any;
+  let templateRefreshInterval: any;
 
-  onMount(async () => {
-    try {
-      const result = await slideshow.photos(eventId);
-      event = result.event;
-      photos = result.photos;
-    } finally {
-      loading = false;
-    }
+  onMount(() => {
+    let disposed = false;
 
-    connectWebSocket();
-    startSlideshowInterval();
-
-    // Listen to fullscreen changes
     const onFullscreenChange = () => {
       isFullscreen = !!document.fullscreenElement;
       if (!isFullscreen) {
         isPresentationMode = false;
       }
     };
+
     document.addEventListener("fullscreenchange", onFullscreenChange);
 
+    void (async () => {
+      try {
+        await loadSlideshowData();
+        if (disposed) return;
+      } finally {
+        loading = false;
+      }
+
+      connectWebSocket();
+      startTemplatePolling();
+    })();
+
     return () => {
+      disposed = true;
       if (socket) socket.close();
       if (slideshowInterval) clearInterval(slideshowInterval);
+      if (templateRefreshInterval) clearInterval(templateRefreshInterval);
       document.removeEventListener("fullscreenchange", onFullscreenChange);
     };
   });
+
+  async function loadSlideshowData() {
+    const [photoResult, templateResult] = await Promise.all([
+      slideshow.photos(eventId),
+      templates.slideshow(eventId).catch(() => null),
+    ]);
+    event = photoResult.event;
+    photos = photoResult.photos;
+    template = templateResult?.template ?? null;
+    restartSlideshowInterval();
+  }
+
+  async function refreshTemplate() {
+    try {
+      const result = await templates.slideshow(eventId);
+      if (!template || result.template.updatedAt !== template.updatedAt) {
+        template = result.template;
+        restartSlideshowInterval();
+      }
+    } catch (e) {
+      console.error("Template refresh error:", e);
+    }
+  }
+
+  function startTemplatePolling() {
+    if (templateRefreshInterval) clearInterval(templateRefreshInterval);
+    templateRefreshInterval = setInterval(() => {
+      void refreshTemplate();
+    }, 30000);
+  }
 
   function connectWebSocket() {
     if (!wsUrl) return;
@@ -79,6 +118,7 @@
           // Switch presentation to the newly received photo instantly
           if (isPresentationMode) {
             activeIndex = 0;
+            transitionVersion += 1;
           }
 
           // Trigger Danmaku if guest provided a greeting message
@@ -89,6 +129,7 @@
           photos = photos.filter(p => p.PK !== data.photoId);
           if (activeIndex >= photos.length && photos.length > 0) {
             activeIndex = 0;
+            transitionVersion += 1;
           }
         }
       };
@@ -102,12 +143,20 @@
     }
   }
 
-  function startSlideshowInterval() {
+  function restartSlideshowInterval() {
+    if (slideshowInterval) clearInterval(slideshowInterval);
+    const intervalSeconds = template?.playback.intervalSeconds ?? 8;
     slideshowInterval = setInterval(() => {
       if (photos.length > 0 && isPresentationMode) {
-        activeIndex = (activeIndex + 1) % photos.length;
+        advanceSlide(1);
       }
-    }, 8000); // Auto-advance every 8 seconds
+    }, intervalSeconds * 1000);
+  }
+
+  function advanceSlide(step: number) {
+    if (photos.length === 0) return;
+    activeIndex = (activeIndex + step + photos.length) % photos.length;
+    transitionVersion += 1;
   }
 
   // High performance CSS3 Track-based Danmaku Scheduler
@@ -139,6 +188,7 @@
   function enterPresentationMode() {
     isPresentationMode = true;
     activeIndex = 0;
+    transitionVersion += 1;
     const docEl = document.documentElement;
     if (docEl.requestFullscreen) {
       docEl.requestFullscreen().then(() => {
@@ -159,6 +209,27 @@
   }
 
   const activePhoto = $derived(photos[activeIndex] || null);
+
+  function layerStyle(layer: TemplateLayer) {
+    if (!template) return "";
+    const widthPct = (layer.width / template.canvas.width) * 100;
+    const heightPct = (layer.height / template.canvas.height) * 100;
+    const leftPct = (layer.x / template.canvas.width) * 100;
+    const topPct = (layer.y / template.canvas.height) * 100;
+    return `left:${leftPct}%;top:${topPct}%;width:${widthPct}%;height:${heightPct}%;z-index:${layer.zIndex};transform:rotate(${layer.rotation}deg);opacity:${layer.data.opacity ?? 1};`;
+  }
+
+  function previewAssetUrl(layer: TemplateLayer) {
+    return template?.assets.find((asset) => asset.assetId === layer.data.assetId || asset.key === layer.data.assetKey)?.previewUrl;
+  }
+
+  function photoTransitionClass() {
+    return template?.playback.transition === "slide"
+      ? "photo-slide"
+      : template?.playback.transition === "fade-scale"
+        ? "photo-fade-scale"
+        : "photo-fade";
+  }
 </script>
 
 {#if isPresentationMode && activePhoto}
@@ -171,22 +242,47 @@
     </div>
 
     <!-- Active Fullscreen Photo -->
-    <div class="absolute inset-0 flex items-center justify-center p-6 z-10 transition-all duration-1000">
-      <div class="relative max-w-full max-h-full rounded-2xl overflow-hidden shadow-2xl border border-white/10 flex flex-col justify-end bg-black/40">
-        <img
-          src={activePhoto.presignedUrl}
-          alt={activePhoto.nickname}
-          class="max-w-full max-h-[82vh] object-contain mx-auto"
-        />
-        
-        <!-- Contributor Info bar -->
-        <div class="w-full p-4 bg-gradient-to-t from-black/80 via-black/50 to-transparent text-white text-center">
-          <p class="text-sm font-semibold tracking-wide text-[#d4a373]">👤 賓客 {activePhoto.nickname} 上傳分享</p>
-          {#if activePhoto.greeting}
-            <p class="text-lg font-medium mt-1 text-[#fdf8f3] tracking-wider leading-relaxed">「 {activePhoto.greeting} 」</p>
+    <div class="absolute inset-0 flex items-center justify-center p-4 z-10">
+      {#key transitionVersion}
+        <div class={`relative w-full h-full max-w-[92vw] max-h-[88vh] ${photoTransitionClass()} rounded-2xl overflow-hidden shadow-2xl border border-white/10 bg-black/40`}>
+          <div class="absolute inset-0">
+            <img
+              src={activePhoto.presignedUrl}
+              alt={activePhoto.nickname}
+              class="w-full h-full object-cover opacity-80"
+            />
+            <div class="absolute inset-0 bg-gradient-to-t from-black/55 via-transparent to-black/10"></div>
+          </div>
+
+          {#if template}
+            <div class="absolute inset-0" style={`aspect-ratio: ${template.canvas.width} / ${template.canvas.height};`}>
+              {#each template.layers.slice().sort((a, b) => a.zIndex - b.zIndex) as layer (layer.id)}
+                <div class="absolute overflow-hidden" style={layerStyle(layer)}>
+                  {#if layer.type === "decorative-asset" && previewAssetUrl(layer)}
+                    <img src={previewAssetUrl(layer)} alt={layer.data.text ?? "decorative asset"} class="w-full h-full object-contain" />
+                  {:else if layer.type === "text"}
+                    <div class="w-full h-full flex items-center justify-center p-4 text-center" style={`background:${layer.data.backgroundColor ?? "rgba(0,0,0,0.12)"};color:${layer.data.color ?? "#fff"};`}>
+                      <div style={`font-size:${layer.data.fontSize ?? 28}px;text-align:${layer.data.align ?? "center"};`} class="font-semibold tracking-wide">
+                        {layer.data.text ?? "文字"}
+                      </div>
+                    </div>
+                  {:else}
+                    <div class="w-full h-full border-2 border-dashed rounded-[inherit]" style={`border-color:${layer.data.borderColor ?? "#fff"};border-width:${layer.data.borderWidth ?? 10}px;border-radius:${layer.data.borderRadius ?? 28}px; background:${layer.data.backgroundColor ?? "rgba(255,255,255,0.06)"};`}></div>
+                  {/if}
+                </div>
+              {/each}
+            </div>
           {/if}
+
+          <!-- Contributor Info bar -->
+          <div class="absolute left-0 right-0 bottom-0 p-4 bg-gradient-to-t from-black/80 via-black/45 to-transparent text-white text-center">
+            <p class="text-sm font-semibold tracking-wide text-[#d4a373]">👤 賓客 {activePhoto.nickname} 上傳分享</p>
+            {#if activePhoto.greeting}
+              <p class="text-lg font-medium mt-1 text-[#fdf8f3] tracking-wider leading-relaxed">「 {activePhoto.greeting} 」</p>
+            {/if}
+          </div>
         </div>
-      </div>
+      {/key}
     </div>
 
     <!-- 📣 GPU-Accelerated Danmaku Overlay Tracks -->
@@ -206,7 +302,7 @@
     <div class="absolute bottom-6 left-1/2 -translate-x-1/2 z-40 bg-black/60 backdrop-blur-lg border border-white/10 rounded-full px-5 py-2.5 flex items-center gap-6 shadow-xl opacity-20 hover:opacity-100 transition-opacity duration-300">
       <div class="flex items-center gap-2">
         <div class="w-2.5 h-2.5 bg-green-500 rounded-full animate-ping"></div>
-        <span class="text-xs text-neutral-300 font-semibold tracking-wider">WebSocket 連線正常</span>
+        <span class="text-xs text-neutral-300 font-semibold tracking-wider">動畫 {template?.playback.transition ?? "fade"} / {template?.playback.intervalSeconds ?? 8}s</span>
       </div>
       <div class="w-[1px] h-4 bg-white/20"></div>
       <button
@@ -277,6 +373,51 @@
 {/if}
 
 <style>
+  @keyframes photo-fade {
+    from {
+      opacity: 0;
+      transform: scale(1.01);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
+  @keyframes photo-fade-scale {
+    from {
+      opacity: 0;
+      transform: scale(1.05);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
+  @keyframes photo-slide {
+    from {
+      opacity: 0;
+      transform: translateX(2.5%) scale(1.01);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0) scale(1);
+    }
+  }
+
+  .photo-fade {
+    animation: photo-fade 0.55s ease both;
+  }
+
+  .photo-fade-scale {
+    animation: photo-fade-scale 0.55s ease both;
+  }
+
+  .photo-slide {
+    animation: photo-slide 0.55s ease both;
+  }
+
   @keyframes danmaku-scroll {
     from {
       transform: translateX(100vw);

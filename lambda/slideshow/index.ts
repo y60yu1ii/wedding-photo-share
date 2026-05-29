@@ -6,11 +6,33 @@ import {
 } from "@aws-sdk/lib-dynamodb";
 import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { defaultTemplate, normalizeTemplate } from "../template";
 
 const dynamo = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 const s3 = new S3Client({});
 
 const PRESIGN_EXPIRY = 3600; // 1 hour
+
+async function presignTemplateAssetGet(s3Key: string): Promise<string> {
+  return getSignedUrl(
+    s3,
+    new GetObjectCommand({
+      Bucket: process.env.PHOTO_BUCKET!,
+      Key: s3Key,
+    }),
+    { expiresIn: PRESIGN_EXPIRY }
+  );
+}
+
+async function decorateTemplateAssets(template: any) {
+  const assets = await Promise.all(
+    (template.assets ?? []).map(async (asset: any) => ({
+      ...asset,
+      previewUrl: asset.key ? await presignTemplateAssetGet(asset.key) : undefined,
+    }))
+  );
+  return { ...template, assets };
+}
 
 // GET /slideshow/photos?eventId=xxx → list approved photos for event
 async function getSlideshowPhotos(eventId: string) {
@@ -60,6 +82,24 @@ async function presignPhoto(photoId: string) {
   return { photoId, presignedUrl: url };
 }
 
+async function getSlideshowTemplate(eventId: string) {
+  const resp = await dynamo.send(
+    new GetCommand({ TableName: process.env.EVENTS_TABLE!, Key: { PK: eventId, SK: "METADATA" } })
+  );
+  if (!resp.Item) return null;
+  const publishedTemplate = resp.Item.templatePublished
+    ? normalizeTemplate(resp.Item.templatePublished)
+    : resp.Item.template
+      ? normalizeTemplate(resp.Item.template)
+    : null;
+  const activeTemplate = publishedTemplate ?? defaultTemplate();
+  return {
+    eventId,
+    template: await decorateTemplateAssets(activeTemplate),
+    published: !!publishedTemplate,
+  };
+}
+
 export async function handler(event: any) {
   const method = event.requestContext?.http?.method ?? event.httpMethod ?? "GET";
   const path: string = event.requestContext?.http?.path ?? event.path ?? "";
@@ -73,6 +113,19 @@ export async function handler(event: any) {
       }
       const photos = await getSlideshowPhotos(eventId);
       return { statusCode: 200, body: JSON.stringify({ eventId, photos }) };
+    }
+
+    // GET /slideshow/template?eventId=xxx
+    if (path === "/slideshow/template" && method === "GET") {
+      const eventId = event.queryStringParameters?.eventId;
+      if (!eventId) {
+        return { statusCode: 400, body: JSON.stringify({ error: "eventId required" }) };
+      }
+      const result = await getSlideshowTemplate(eventId);
+      if (!result) {
+        return { statusCode: 404, body: JSON.stringify({ error: "Not found" }) };
+      }
+      return { statusCode: 200, body: JSON.stringify(result) };
     }
 
     // GET /slideshow/presign/{photoId}

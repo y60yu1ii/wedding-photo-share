@@ -11,6 +11,7 @@
     "synth": "cdk synth",
     "deploy": "npm run build && cdk deploy --profile yyl --outputs-file cdk-outputs.json --require-approval never",
     "destroy": "cdk destroy --profile yyl --force",
+    "check": "npm --prefix frontend run check && npm run build",
     "test": "npm run test:unit -- --runInBand",
     "test:fast": "npm run test:unit -- --runInBand",
     "test:unit": "jest --watchman=false",

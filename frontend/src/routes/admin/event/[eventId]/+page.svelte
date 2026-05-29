@@ -4,7 +4,7 @@
   import { goto } from "$app/navigation";
   import { auth, events } from "$lib/api/client";
 
-  const eventId = $derived($page.params.eventId);
+  const eventId = $derived($page.params.eventId ?? "");
   const wsUrl = import.meta.env.VITE_WS_URL;
 
   let event = $state<any>({});
@@ -117,8 +117,8 @@
     };
   }
 
-  function qrUrl(text: string) {
-    return `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(text)}`;
+  function qrUrl(text: string | undefined) {
+    return `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(text ?? "")}`;
   }
 
   const urls = $derived(buildUrls(event));
@@ -152,6 +152,13 @@
     </div>
   </div>
 
+  <a
+    href="/admin/event/{eventId}/design"
+    class="mb-4 inline-flex items-center gap-2 text-sm font-semibold text-[#3d2b1f] bg-white border border-[#e8d5c4] rounded-full px-4 py-2 shadow-sm hover:border-[#d4a373] hover:bg-[#fffaf3] transition-colors"
+  >
+    🎨 編輯投屏模板
+  </a>
+
   <!-- Key Cards -->
   <div class="bg-white rounded-2xl p-5 shadow-sm border border-[#e8d5c4] mb-4">
     <h2 class="text-sm font-semibold mb-3">分享連結</h2>
@@ -164,7 +171,7 @@
           <p class="text-xs text-[#8b7355] mb-1">👤 賓客上傳</p>
           <p class="text-xs font-mono break-all text-[#3d2b1f] bg-[#fdf8f3] rounded px-2 py-1">{urls.uploadUrl}</p>
           <button
-            onclick={() => navigator.clipboard.writeText(urls.uploadUrl)}
+            onclick={() => navigator.clipboard.writeText(urls.uploadUrl ?? "")}
             class="mt-1.5 text-xs bg-[#f5ede3] hover:bg-[#e8d5c4] text-[#8b7355] px-3 py-1 rounded-md transition-colors"
           >📋 複製連結</button>
         </div>
@@ -177,7 +184,7 @@
           <p class="text-xs text-[#8b7355] mb-1">🎉 婚禮展示</p>
           <p class="text-xs font-mono break-all text-[#3d2b1f] bg-[#fdf8f3] rounded px-2 py-1">{urls.showUrl}</p>
           <button
-            onclick={() => navigator.clipboard.writeText(urls.showUrl)}
+            onclick={() => navigator.clipboard.writeText(urls.showUrl ?? "")}
             class="mt-1.5 text-xs bg-[#f5ede3] hover:bg-[#e8d5c4] text-[#8b7355] px-3 py-1 rounded-md transition-colors"
           >📋 複製連結</button>
         </div>

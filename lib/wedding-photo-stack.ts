@@ -216,6 +216,7 @@ export class WeddingPhotoStack extends cdk.Stack {
       handler: "index.handler",
       timeout: cdk.Duration.seconds(10),
       environment: {
+        EVENTS_TABLE: this.eventsTable.tableName,
         PHOTOS_TABLE: this.photosTable.tableName,
         PHOTO_BUCKET: this.photoBucket.bucketName,
         STAGE,

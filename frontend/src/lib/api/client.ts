@@ -1,4 +1,13 @@
 // API client for wedding-photo backend
+import type {
+  EventTemplate,
+  EventTemplateResponse,
+  TemplateAsset,
+  TemplateLayer,
+  TemplatePlayback,
+  TemplateTransition,
+} from "./types";
+
 const API_BASE = import.meta.env.VITE_API_URL ?? "";
 const MAX_RETRIES = 3;
 const RETRY_DELAY_BASE_MS = 500;
@@ -175,5 +184,51 @@ export const upload = {
     });
     if (!res.ok) throw new Error("確認上傳失敗");
     return res.json();
+  },
+};
+
+export const templates = {
+  async get(eventId: string): Promise<EventTemplateResponse> {
+    const res = await request(`/admin/events/${encodeURIComponent(eventId)}/template`, { token: true });
+    if (!res.ok) throw new Error("取得模板失敗");
+    return res.json();
+  },
+  async save(eventId: string, template: EventTemplate, publish = false): Promise<EventTemplateResponse> {
+    const res = await request(`/admin/events/${encodeURIComponent(eventId)}/template`, {
+      method: "PUT",
+      token: true,
+      body: JSON.stringify({ template, publish }),
+    });
+    if (!res.ok) throw new Error("儲存模板失敗");
+    return res.json();
+  },
+  async presignAsset(eventId: string, filename: string, contentType: string) {
+    const res = await request(`/admin/events/${encodeURIComponent(eventId)}/template-assets/presign`, {
+      method: "POST",
+      token: true,
+      body: JSON.stringify({ filename, contentType }),
+    });
+    if (!res.ok) throw new Error("取得裝飾素材上傳連結失敗");
+    return res.json() as Promise<{ assetId: string; assetKey: string; uploadUrl: string }>;
+  },
+  async confirmAsset(
+    eventId: string,
+    assetId: string,
+    filename: string,
+    contentType: string,
+    assetKey: string,
+  ) {
+    const res = await request(`/admin/events/${encodeURIComponent(eventId)}/template-assets/confirm`, {
+      method: "POST",
+      token: true,
+      body: JSON.stringify({ assetId, filename, contentType, assetKey }),
+    });
+    if (!res.ok) throw new Error("確認裝飾素材失敗");
+    return res.json() as Promise<{ asset: TemplateAsset; template: EventTemplate }>;
+  },
+  async slideshow(eventId: string) {
+    const res = await request(`/slideshow/template?eventId=${encodeURIComponent(eventId)}`);
+    if (!res.ok) throw new Error("取得投屏模板失敗");
+    return res.json() as Promise<{ eventId: string; template: EventTemplate; published: boolean }>;
   },
 };

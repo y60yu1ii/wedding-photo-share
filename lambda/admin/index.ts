@@ -9,10 +9,11 @@ import {
   DeleteCommand,
 } from "@aws-sdk/lib-dynamodb";
 import { SecretsManagerClient, GetSecretValueCommand } from "@aws-sdk/client-secrets-manager";
-import { S3Client, DeleteObjectsCommand, DeleteObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, DeleteObjectsCommand, DeleteObjectCommand, GetObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { ApiGatewayManagementApiClient, PostToConnectionCommand } from "@aws-sdk/client-apigatewaymanagementapi";
 import { SignJWT, jwtVerify } from "jose";
+import { defaultTemplate, makeAssetKey, normalizeTemplate, validateTemplate } from "../template";
 
 const dynamo = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 const secrets = new SecretsManagerClient({});
@@ -81,6 +82,7 @@ async function listEvents() {
 async function createEvent(body: { name: string; date: string; requiresReview?: boolean }) {
   const PK = `EVENT-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
   const now = new Date().toISOString();
+  const templateDraft = defaultTemplate();
 
   // Generate UPLOAD_KEY and SHOW_KEY
   const uploadKey = generateKey(16);
@@ -96,6 +98,9 @@ async function createEvent(body: { name: string; date: string; requiresReview?: 
     status: "active",
     createdAt: now,
     requiresReview: body.requiresReview ?? true, // default to true
+    templateDraft,
+    templatePublished: null,
+    templateUpdatedAt: now,
     // Store plaintext keys for admin retrieval (hashes still used for validation)
     uploadKey,
     showKey,
@@ -153,6 +158,122 @@ async function getEvent(eventId: string) {
     ...resp.Item,
     photoCount: photosResp.Items?.length ?? 0,
     hasKeys: !!(resp.Item.uploadKey && resp.Item.showKey),
+  };
+}
+
+async function getEventTemplateRecord(eventId: string) {
+  const resp = await dynamo.send(
+    new GetCommand({ TableName: process.env.EVENTS_TABLE!, Key: { PK: eventId, SK: "METADATA" } })
+  );
+  if (!resp.Item) return null;
+
+  const draft = normalizeTemplate(resp.Item.templateDraft ?? resp.Item.template ?? resp.Item.templatePublished ?? defaultTemplate());
+  const published = resp.Item.templatePublished
+    ? normalizeTemplate(resp.Item.templatePublished, draft)
+    : resp.Item.template
+      ? normalizeTemplate(resp.Item.template, draft)
+    : null;
+  return {
+    ...resp.Item,
+    templateDraft: draft,
+    templatePublished: published,
+  };
+}
+
+async function presignTemplateAssetGet(s3Key: string): Promise<string> {
+  return getSignedUrl(
+    s3,
+    new GetObjectCommand({
+      Bucket: process.env.PHOTO_BUCKET!,
+      Key: s3Key,
+    }),
+    { expiresIn: 900 }
+  );
+}
+
+async function decorateTemplateAssets(template: any) {
+  const assets = await Promise.all(
+    (template.assets ?? []).map(async (asset: any) => ({
+      ...asset,
+      previewUrl: asset.key ? await presignTemplateAssetGet(asset.key) : undefined,
+    }))
+  );
+  return { ...template, assets };
+}
+
+async function persistTemplate(eventId: string, templateBody: any, publish = false) {
+  const record = await getEventTemplateRecord(eventId);
+  if (!record) return null;
+
+  const baseTemplate = normalizeTemplate(templateBody, record.templateDraft ?? defaultTemplate());
+  validateTemplate(baseTemplate);
+
+  const now = new Date().toISOString();
+  const updateExpression = publish
+    ? "SET templateDraft = :draft, templatePublished = :published, templateUpdatedAt = :updatedAt"
+    : "SET templateDraft = :draft, templateUpdatedAt = :updatedAt";
+  const expressionValues: Record<string, any> = {
+    ":draft": { ...baseTemplate, updatedAt: now },
+    ":updatedAt": now,
+  };
+  if (publish) {
+    expressionValues[":published"] = { ...baseTemplate, updatedAt: now };
+  }
+
+  await dynamo.send(
+    new UpdateCommand({
+      TableName: process.env.EVENTS_TABLE!,
+      Key: { PK: eventId, SK: "METADATA" },
+      UpdateExpression: updateExpression,
+      ExpressionAttributeValues: expressionValues,
+    })
+  );
+
+  return {
+    template: await decorateTemplateAssets({ ...baseTemplate, updatedAt: now }),
+    publishedTemplate: publish ? await decorateTemplateAssets({ ...baseTemplate, updatedAt: now }) : record.templatePublished ? await decorateTemplateAssets(record.templatePublished) : null,
+  };
+}
+
+async function addTemplateAsset(eventId: string, body: any) {
+  const record = await getEventTemplateRecord(eventId);
+  if (!record) return null;
+
+  const assetId = typeof body.assetId === "string" && body.assetId ? body.assetId : crypto.randomUUID();
+  const filename = typeof body.filename === "string" && body.filename ? body.filename : "asset";
+  const contentType = typeof body.contentType === "string" && body.contentType ? body.contentType : "image/png";
+  if (!contentType.startsWith("image/")) {
+    throw new Error("Invalid asset type");
+  }
+  const key = typeof body.assetKey === "string" && body.assetKey ? body.assetKey : makeAssetKey(eventId, assetId, filename);
+  const uploadedAt = new Date().toISOString();
+  const asset = { assetId, filename, contentType, key, uploadedAt };
+  const draft = normalizeTemplate(record.templateDraft ?? defaultTemplate());
+  const nextDraft = {
+    ...draft,
+    assets: [...draft.assets.filter((item) => item.assetId !== assetId), asset],
+    updatedAt: uploadedAt,
+  };
+  validateTemplate(nextDraft);
+
+  await dynamo.send(
+    new UpdateCommand({
+      TableName: process.env.EVENTS_TABLE!,
+      Key: { PK: eventId, SK: "METADATA" },
+      UpdateExpression: "SET templateDraft = :draft, templateUpdatedAt = :updatedAt",
+      ExpressionAttributeValues: {
+        ":draft": nextDraft,
+        ":updatedAt": uploadedAt,
+      },
+    })
+  );
+
+  return {
+    asset: {
+      ...asset,
+      previewUrl: await presignTemplateAssetGet(asset.key),
+    },
+    template: await decorateTemplateAssets(nextDraft),
   };
 }
 
@@ -519,6 +640,72 @@ export async function handler(event: any) {
       }
       const newEvent = await createEvent(body);
       return res(201, newEvent);
+    }
+
+    // GET /admin/events/{eventId}/template
+    const templateMatch = path.match(/^\/admin\/events\/([^/]+)\/template$/);
+    if (templateMatch && method === "GET") {
+      const eventId = decodeURIComponent(templateMatch[1]);
+      const record = await getEventTemplateRecord(eventId);
+      if (!record) return res(404, { error: "Not found" });
+      const template = await decorateTemplateAssets(record.templateDraft ?? defaultTemplate());
+      const publishedTemplate = record.templatePublished ? await decorateTemplateAssets(record.templatePublished) : null;
+      return res(200, {
+        eventId,
+        template,
+        publishedTemplate,
+        published: !!record.templatePublished,
+      });
+    }
+
+    // PUT /admin/events/{eventId}/template
+    if (templateMatch && method === "PUT") {
+      const eventId = decodeURIComponent(templateMatch[1]);
+      const body = JSON.parse(event.body ?? "{}");
+      const result = await persistTemplate(eventId, body.template ?? body, Boolean(body.publish));
+      if (!result) return res(404, { error: "Not found" });
+      return res(200, {
+        eventId,
+        ...result,
+        published: Boolean(body.publish),
+      });
+    }
+
+    // POST /admin/events/{eventId}/template-assets/presign
+    const assetPresignMatch = path.match(/^\/admin\/events\/([^/]+)\/template-assets\/presign$/);
+    if (assetPresignMatch && method === "POST") {
+      const eventId = decodeURIComponent(assetPresignMatch[1]);
+      const record = await getEventTemplateRecord(eventId);
+      if (!record) return res(404, { error: "Not found" });
+      const body = JSON.parse(event.body ?? "{}");
+      if (!body.filename || !body.contentType) {
+        return res(400, { error: "missing fields" });
+      }
+      if (!String(body.contentType).startsWith("image/")) {
+        return res(400, { error: "Invalid asset type" });
+      }
+      const assetId = crypto.randomUUID();
+      const assetKey = makeAssetKey(eventId, assetId, body.filename);
+      const uploadUrl = await getSignedUrl(
+        s3,
+        new PutObjectCommand({
+          Bucket: process.env.PHOTO_BUCKET!,
+          Key: assetKey,
+          ContentType: body.contentType,
+        }),
+        { expiresIn: 900 }
+      );
+      return res(200, { assetId, assetKey, uploadUrl });
+    }
+
+    // POST /admin/events/{eventId}/template-assets/confirm
+    const assetConfirmMatch = path.match(/^\/admin\/events\/([^/]+)\/template-assets\/confirm$/);
+    if (assetConfirmMatch && method === "POST") {
+      const eventId = decodeURIComponent(assetConfirmMatch[1]);
+      const body = JSON.parse(event.body ?? "{}");
+      const result = await addTemplateAsset(eventId, body);
+      if (!result) return res(404, { error: "Not found" });
+      return res(200, { eventId, ...result });
     }
 
     // GET /admin/events/{eventId}

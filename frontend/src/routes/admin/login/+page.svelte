@@ -29,8 +29,9 @@
 
     <div class="space-y-4">
       <div>
-        <label class="block text-sm text-[#8b7355] mb-1.5">帳號</label>
+        <label for="username" class="block text-sm text-[#8b7355] mb-1.5">帳號</label>
         <input
+          id="username"
           bind:value={username}
           placeholder="管理員帳號"
           autocomplete="username"
@@ -38,8 +39,9 @@
         />
       </div>
       <div>
-        <label class="block text-sm text-[#8b7355] mb-1.5">密碼</label>
+        <label for="password" class="block text-sm text-[#8b7355] mb-1.5">密碼</label>
         <input
+          id="password"
           type="password"
           bind:value={password}
           placeholder="管理員密碼"
