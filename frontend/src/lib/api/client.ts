@@ -160,11 +160,11 @@ export const upload = {
     if (!res.ok) throw new Error("取得上傳連結失敗");
     return res.json(); // { uploadUrl, photoId }
   },
-  async confirm(eventId: string, photoId: string, nickname: string, key?: string) {
+  async confirm(eventId: string, photoId: string, nickname: string, key?: string, greeting?: string) {
     const url = key ? `/upload/confirm?key=${encodeURIComponent(key)}` : "/upload/confirm";
     const res = await request(url, {
       method: "POST",
-      body: JSON.stringify({ eventId, photoId, nickname }),
+      body: JSON.stringify({ eventId, photoId, nickname, greeting }),
     });
     if (!res.ok) throw new Error("確認上傳失敗");
     return res.json();
