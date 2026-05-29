@@ -442,6 +442,7 @@ export class WeddingPhotoStack extends cdk.Stack {
     new BucketDeployment(this, "DeployFrontend", {
       sources: [Source.asset("./frontend/build")],
       destinationBucket: frontendBucket,
+      prune: false,
       distribution,
       distributionPaths: ["/*"],
     });

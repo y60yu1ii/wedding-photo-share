@@ -8,6 +8,11 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const mockSend = jest.fn();
 const mockSecretsSend = jest.fn();
 const mockS3Send = jest.fn();
+const mockWsSend = jest.fn();
+jest.mock("@aws-sdk/client-apigatewaymanagementapi", () => ({
+    ApiGatewayManagementApiClient: jest.fn().mockImplementation(() => ({ send: mockWsSend })),
+    PostToConnectionCommand: jest.fn().mockImplementation((i) => ({ input: i })),
+}));
 jest.mock("@aws-sdk/client-s3", () => ({
     S3Client: jest.fn().mockImplementation(() => ({ send: mockS3Send })),
     GetObjectCommand: jest.fn().mockImplementation((i) => ({ input: i })),
@@ -75,6 +80,7 @@ beforeEach(() => {
     process.env.EVENTS_TABLE = "events-table";
     process.env.KEYPAIRS_TABLE = "keypairs-table";
     process.env.PHOTOS_TABLE = "photos-table";
+    process.env.CONNECTIONS_TABLE = "connections-table";
     process.env.PHOTO_BUCKET = "photo-bucket";
     process.env.JWT_SECRET_NAME = "jwt-secret-name";
     process.env.STAGE = "prod";
@@ -235,6 +241,36 @@ describe("POST /admin/events (authenticated)", () => {
             const body = JSON.parse(result.body);
             expect(body.success).toBe(true);
             expect(mockSend).toHaveBeenCalled();
+        });
+    });
+    describe("PATCH /admin/photos/{photoId} (authenticated)", () => {
+        test("approves photo and broadcasts via WebSockets", async () => {
+            mockSend
+                .mockResolvedValueOnce({
+                Attributes: {
+                    PK: "PHOTO#1",
+                    SK: "METADATA",
+                    eventId: "EVENT-1",
+                    s3Key: "prod/EVENT-1/PHOTO#1.jpg",
+                    nickname: "Alice",
+                    greeting: "Happy Wedding!"
+                }
+            })
+                .mockResolvedValueOnce({
+                Items: [
+                    { connectionId: "conn-1", wsEndpoint: "https://ws-endpoint" }
+                ]
+            });
+            mockWsSend.mockResolvedValue({});
+            const event = {
+                requestContext: { http: { method: "PATCH", path: "/admin/photos/PHOTO#1" } },
+                headers: authHeaders(),
+            };
+            const result = await (0, index_1.handler)(event);
+            expect(result.statusCode).toBe(200);
+            expect(JSON.parse(result.body).status).toBe("approved");
+            // Verify WebSocket was invoked
+            expect(mockWsSend).toHaveBeenCalled();
         });
     });
 });

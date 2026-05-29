@@ -188,8 +188,10 @@ class WeddingPhotoStack extends cdk.Stack {
                 EVENTS_TABLE: this.eventsTable.tableName,
                 KEYPAIRS_TABLE: this.keypairsTable.tableName,
                 PHOTOS_TABLE: this.photosTable.tableName,
+                CONNECTIONS_TABLE: this.connectionsTable.tableName,
                 JWT_SECRET_NAME: jwtSecret.secretName,
                 PHOTO_BUCKET: this.photoBucket.bucketName,
+                WEBSOCKET_API_URL: wsApiUrl,
                 STAGE,
             },
         });
@@ -418,6 +420,7 @@ class WeddingPhotoStack extends cdk.Stack {
         new aws_s3_deployment_1.BucketDeployment(this, "DeployFrontend", {
             sources: [aws_s3_deployment_1.Source.asset("./frontend/build")],
             destinationBucket: frontendBucket,
+            prune: false,
             distribution,
             distributionPaths: ["/*"],
         });

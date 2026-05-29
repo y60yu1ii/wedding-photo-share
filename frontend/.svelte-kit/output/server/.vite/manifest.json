@@ -127,7 +127,7 @@
     "src": "src/routes/+layout.svelte",
     "isEntry": true,
     "css": [
-      "_app/immutable/assets/_layout.7sGoLGoL.css"
+      "_app/immutable/assets/_layout.BEXkLEom.css"
     ]
   },
   "src/routes/+page.svelte": {
@@ -187,10 +187,10 @@
     "imports": [
       "_root.js",
       "_attributes.js",
-      "_stores.js",
-      "_exports.js",
-      "_utils.js",
-      "_state.svelte.js"
+      "_stores.js"
+    ],
+    "css": [
+      "_app/immutable/assets/_page.0XrL2UqW.css"
     ]
   },
   "src/routes/event/[eventId]/upload/+page.svelte": {

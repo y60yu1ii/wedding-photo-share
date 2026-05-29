@@ -39,6 +39,7 @@
  */
 declare module '$env/static/private' {
 	export const VITE_API_URL: string;
+	export const VITE_WS_URL: string;
 	export const ANTIGRAVITY_AGENT: string;
 	export const NVM_INC: string;
 	export const GREP_COLOR: string;
@@ -213,6 +214,7 @@ declare module '$env/static/public' {
 declare module '$env/dynamic/private' {
 	export const env: {
 		VITE_API_URL: string;
+		VITE_WS_URL: string;
 		ANTIGRAVITY_AGENT: string;
 		NVM_INC: string;
 		GREP_COLOR: string;

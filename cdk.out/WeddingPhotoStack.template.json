@@ -1801,7 +1801,7 @@
    "Properties": {
     "Code": {
      "S3Bucket": "cdk-hnb659fds-assets-127537619055-ap-northeast-1",
-     "S3Key": "f112d607a4818cc6f12c8f9c99b54e047a98b565c5c539ec279b73dcd1b04116.zip"
+     "S3Key": "ee689d495436001df58663ab2b2b9e8d70e3aa6b492b6719e142bd25d9a244bf.zip"
     },
     "DeadLetterConfig": {
      "TargetArn": {
@@ -1821,6 +1821,9 @@
       },
       "PHOTOS_TABLE": {
        "Ref": "PhotosTable7E3E5302"
+      },
+      "CONNECTIONS_TABLE": {
+       "Ref": "ConnectionsTable8000B8A1"
       },
       "JWT_SECRET_NAME": {
        "Fn::Join": [
@@ -1947,6 +1950,18 @@
       "PHOTO_BUCKET": {
        "Ref": "PhotoBucket465738B3"
       },
+      "WEBSOCKET_API_URL": {
+       "Fn::Join": [
+        "",
+        [
+         "https://",
+         {
+          "Ref": "RestApi0C43BF4B"
+         },
+         ".execute-api.ap-northeast-1.amazonaws.com"
+        ]
+       ]
+      },
       "STAGE": "prod"
      }
     },
@@ -1967,7 +1982,7 @@
    ],
    "Metadata": {
     "aws:cdk:path": "WeddingPhotoStack/AdminLambda/Resource",
-    "aws:asset:path": "asset.f112d607a4818cc6f12c8f9c99b54e047a98b565c5c539ec279b73dcd1b04116",
+    "aws:asset:path": "asset.ee689d495436001df58663ab2b2b9e8d70e3aa6b492b6719e142bd25d9a244bf",
     "aws:asset:is-bundled": false,
     "aws:asset:property": "Code"
    }
@@ -2327,7 +2342,7 @@
    "Properties": {
     "Code": {
      "S3Bucket": "cdk-hnb659fds-assets-127537619055-ap-northeast-1",
-     "S3Key": "07b5ae77fc355417bb96837db3e132face5291d21721bb731f36858a547a4cb5.zip"
+     "S3Key": "1ab0a410063c422e0cea47ba569f77599e12941f0d1577e86f59762ee3d03433.zip"
     },
     "DeadLetterConfig": {
      "TargetArn": {
@@ -2386,7 +2401,7 @@
    ],
    "Metadata": {
     "aws:cdk:path": "WeddingPhotoStack/UploadLambda/Resource",
-    "aws:asset:path": "asset.07b5ae77fc355417bb96837db3e132face5291d21721bb731f36858a547a4cb5",
+    "aws:asset:path": "asset.1ab0a410063c422e0cea47ba569f77599e12941f0d1577e86f59762ee3d03433",
     "aws:asset:is-bundled": false,
     "aws:asset:property": "Code"
    }
@@ -4045,13 +4060,13 @@
      "cdk-hnb659fds-assets-127537619055-ap-northeast-1"
     ],
     "SourceObjectKeys": [
-     "ceaf1154fee319cd8d30642d19a21e7fd74c49620606c40cb5e3bf66d398e5b6.zip"
+     "e1416911d670895cda178e2843df1cf879cfd06694e07fac2f60d60abf10958f.zip"
     ],
     "DestinationBucketName": {
      "Ref": "FrontendBucketEFE2E19C"
     },
     "WaitForDistributionInvalidation": true,
-    "Prune": true,
+    "Prune": false,
     "DistributionId": {
      "Ref": "CloudFrontDist239A6E31"
     },

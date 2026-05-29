@@ -9,7 +9,7 @@ import {
   DeleteCommand,
 } from "@aws-sdk/lib-dynamodb";
 import { SecretsManagerClient, GetSecretValueCommand } from "@aws-sdk/client-secrets-manager";
-import { S3Client, DeleteObjectsCommand, GetObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, DeleteObjectsCommand, DeleteObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { ApiGatewayManagementApiClient, PostToConnectionCommand } from "@aws-sdk/client-apigatewaymanagementapi";
 import { SignJWT, jwtVerify } from "jose";
@@ -334,6 +334,82 @@ async function approvePhoto(photoId: string) {
     await broadcastNewPhoto(photo.eventId, photoId, photo.s3Key, photo.nickname, photo.greeting);
   }
   return { photoId, status: "approved" };
+}
+
+async function broadcastDeletePhoto(eventId: string, photoId: string) {
+  const connections = await dynamo.send(
+    new QueryCommand({
+      TableName: process.env.CONNECTIONS_TABLE!,
+      KeyConditionExpression: "PK = :pk",
+      ExpressionAttributeValues: { ":pk": `EVENT-${eventId}` },
+    })
+  );
+  const items = connections.Items ?? [];
+  if (items.length === 0) return;
+  const wsUrl = items[0]?.wsEndpoint ?? process.env.WEBSOCKET_API_URL;
+  if (!wsUrl) return;
+
+  const wsClient = new ApiGatewayManagementApiClient({ endpoint: wsUrl });
+  const message = JSON.stringify({
+    type: "delete_photo",
+    photoId,
+  });
+
+  await Promise.allSettled(
+    items.map((conn) =>
+      wsClient.send(
+        new PostToConnectionCommand({
+          ConnectionId: conn.connectionId,
+          Data: Buffer.from(message),
+        })
+      )
+    )
+  );
+}
+
+async function deletePhoto(photoId: string) {
+  const resp = await dynamo.send(
+    new GetCommand({
+      TableName: process.env.PHOTOS_TABLE!,
+      Key: { PK: photoId, SK: "METADATA" },
+    })
+  );
+
+  if (!resp.Item) return null;
+
+  const photo = resp.Item;
+  const eventId = photo.eventId;
+  const s3Key = photo.s3Key;
+
+  const deletes: Promise<any>[] = [];
+
+  if (s3Key) {
+    deletes.push(
+      s3.send(
+        new DeleteObjectCommand({
+          Bucket: process.env.PHOTO_BUCKET!,
+          Key: s3Key,
+        })
+      ).catch((err) => console.error("Failed to delete S3 photo object:", err))
+    );
+  }
+
+  deletes.push(
+    dynamo.send(
+      new DeleteCommand({
+        TableName: process.env.PHOTOS_TABLE!,
+        Key: { PK: photoId, SK: "METADATA" },
+      })
+    )
+  );
+
+  await Promise.all(deletes);
+
+  if (eventId) {
+    await broadcastDeletePhoto(eventId, photoId);
+  }
+
+  return { photoId };
 }
 
 // ─── Auth ────────────────────────────────────────────────────────────────
