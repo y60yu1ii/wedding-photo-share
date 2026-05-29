@@ -68,9 +68,6 @@ function isValidNickname(nickname: string): boolean {
 
 // ─── WebSocket broadcast ────────────────────────────────────────────────────
 async function broadcastNewPhoto(eventId: string, photoId: string, s3Key: string) {
-  const wsUrl = process.env.WEBSOCKET_API_URL;
-  if (!wsUrl) return;
-
   // Find all connections for this event
   const connections = await dynamo.send(
     new QueryCommand({
@@ -79,12 +76,15 @@ async function broadcastNewPhoto(eventId: string, photoId: string, s3Key: string
       ExpressionAttributeValues: { ":pk": `EVENT-${eventId}` },
     })
   );
+  const items = connections.Items ?? [];
+  const wsUrl = items[0]?.wsEndpoint ?? process.env.WEBSOCKET_API_URL;
+  if (!wsUrl || items.length === 0) return;
 
   const wsClient = new ApiGatewayManagementApiClient({ endpoint: wsUrl });
   const message = JSON.stringify({ type: "new_photo", photoId, s3Key, uploadedAt: new Date().toISOString() });
 
   await Promise.allSettled(
-    (connections.Items ?? []).map((conn) =>
+    items.map((conn) =>
       wsClient.send(
         new PostToConnectionCommand({
           ConnectionId: conn.connectionId,
@@ -147,7 +147,7 @@ async function presignUpload(
         contentType,
         s3Key,
         status: "pending",
-        nickname: "",
+        nickname: "__pending__",
         uploadedAt: new Date().toISOString(),
       },
       // Conditional write: fail if PK already exists (duplicate)
@@ -186,7 +186,7 @@ async function confirmUpload(
       ExpressionAttributeNames: { "#status": "status" },
       ExpressionAttributeValues: {
         ":n": cleanNickname,
-        ":s": "active",
+        ":s": "pending",
         ":c": new Date().toISOString(),
       },
       ConditionExpression: "attribute_exists(PK) AND attribute_exists(SK)",
@@ -208,7 +208,7 @@ async function confirmUpload(
     await broadcastNewPhoto(eventId, photoId, s3Key);
   }
 
-  return { statusCode: 200, body: JSON.stringify({ photoId, status: "active" }) };
+  return { statusCode: 200, body: JSON.stringify({ photoId, status: "pending" }) };
 }
 
 // ─── Handler ────────────────────────────────────────────────────────────────
@@ -238,10 +238,12 @@ export async function handler(event: any) {
     // POST /upload/presign
     if (path === "/upload/presign" && method === "POST") {
       const { eventId, filename, contentType, fileSize } = body;
+      console.log("presign: eventId=" + eventId + " filename=" + filename + " contentType=" + contentType + " fileSize=" + (fileSize ?? 0) + " key=" + queryKey);
       if (!eventId || !filename || !contentType) {
         return { statusCode: 400, body: JSON.stringify({ error: "missing fields" }) };
       }
       const result = await presignUpload(eventId, filename, contentType, fileSize ?? 0, queryKey);
+      console.log("presign: result=" + JSON.stringify(result).slice(0,100));
       return result;
     }
 

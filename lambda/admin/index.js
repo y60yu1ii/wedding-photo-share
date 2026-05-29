@@ -37309,7 +37309,12 @@ async function sha256(text) {
 }
 async function listEvents() {
   const resp = await dynamo.send(
-    new import_lib_dynamodb.ScanCommand({ TableName: process.env.EVENTS_TABLE })
+    new import_lib_dynamodb.ScanCommand({
+      TableName: process.env.EVENTS_TABLE,
+      FilterExpression: "#s <> :archived",
+      ExpressionAttributeNames: { "#s": "status" },
+      ExpressionAttributeValues: { ":archived": "archived" }
+    })
   );
   return (resp.Items ?? []).sort(
     (a5, b5) => (b5.createdAt ?? "").localeCompare(a5.createdAt ?? "")

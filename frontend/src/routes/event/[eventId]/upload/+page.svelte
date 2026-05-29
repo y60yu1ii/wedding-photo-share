@@ -32,7 +32,7 @@
     try {
       const { uploadUrl, photoId } = await upload.presign(eventId, file.name, file.type, uploadKey);
       await fetch(uploadUrl, { method: "PUT", headers: { "Content-Type": file.type }, body: file });
-      await upload.confirm(eventId, photoId, nickname.trim());
+      await upload.confirm(eventId, photoId, nickname.trim(), uploadKey);
       done = true;
     } catch (e) {
       error = (e as Error).message;

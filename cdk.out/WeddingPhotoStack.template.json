@@ -1764,7 +1764,7 @@
    "Properties": {
     "Code": {
      "S3Bucket": "cdk-hnb659fds-assets-127537619055-ap-northeast-1",
-     "S3Key": "843c795a56b5610660a0674bcb09f6bd3f0805b04f36d84978a2e269fd3041f5.zip"
+     "S3Key": "8cf7fe119a02b228b773b6ad6c6ab801e094f48f79a43069ff958c351c6d3654.zip"
     },
     "DeadLetterConfig": {
      "TargetArn": {
@@ -1927,7 +1927,7 @@
    ],
    "Metadata": {
     "aws:cdk:path": "WeddingPhotoStack/AdminLambda/Resource",
-    "aws:asset:path": "asset.843c795a56b5610660a0674bcb09f6bd3f0805b04f36d84978a2e269fd3041f5",
+    "aws:asset:path": "asset.8cf7fe119a02b228b773b6ad6c6ab801e094f48f79a43069ff958c351c6d3654",
     "aws:asset:is-bundled": false,
     "aws:asset:property": "Code"
    }
@@ -2287,7 +2287,7 @@
    "Properties": {
     "Code": {
      "S3Bucket": "cdk-hnb659fds-assets-127537619055-ap-northeast-1",
-     "S3Key": "b2885a80bc1df0653f18c1609027f64770752350853971bcb4468d83c1c5d889.zip"
+     "S3Key": "a75a0b914f5afda54df92fc4c1f23129801c8c40e12a38cf87ecf5c1b4e072d6.zip"
     },
     "DeadLetterConfig": {
      "TargetArn": {
@@ -2343,7 +2343,7 @@
    ],
    "Metadata": {
     "aws:cdk:path": "WeddingPhotoStack/UploadLambda/Resource",
-    "aws:asset:path": "asset.b2885a80bc1df0653f18c1609027f64770752350853971bcb4468d83c1c5d889",
+    "aws:asset:path": "asset.a75a0b914f5afda54df92fc4c1f23129801c8c40e12a38cf87ecf5c1b4e072d6",
     "aws:asset:is-bundled": false,
     "aws:asset:property": "Code"
    }
@@ -2998,7 +2998,14 @@
        "Action": [
         "s3:GetObject*",
         "s3:GetBucket*",
-        "s3:List*"
+        "s3:List*",
+        "s3:DeleteObject*",
+        "s3:PutObject",
+        "s3:PutObjectLegalHold",
+        "s3:PutObjectRetention",
+        "s3:PutObjectTagging",
+        "s3:PutObjectVersionTagging",
+        "s3:Abort*"
        ],
        "Effect": "Allow",
        "Resource": [
@@ -3043,7 +3050,7 @@
    "Properties": {
     "Code": {
      "S3Bucket": "cdk-hnb659fds-assets-127537619055-ap-northeast-1",
-     "S3Key": "5258b7669cc67b35d7c354b9e25bc0bc16f18ffd85dbad6309b29e6ef980d7ce.zip"
+     "S3Key": "7650c097ccfdcf4caca8ef2c88a218bc83750e011f649f97bf8c56c9cfc6a7a6.zip"
     },
     "DeadLetterConfig": {
      "TargetArn": {
@@ -3081,7 +3088,7 @@
    ],
    "Metadata": {
     "aws:cdk:path": "WeddingPhotoStack/MyGuestLambda/Resource",
-    "aws:asset:path": "asset.5258b7669cc67b35d7c354b9e25bc0bc16f18ffd85dbad6309b29e6ef980d7ce",
+    "aws:asset:path": "asset.7650c097ccfdcf4caca8ef2c88a218bc83750e011f649f97bf8c56c9cfc6a7a6",
     "aws:asset:is-bundled": false,
     "aws:asset:property": "Code"
    }
@@ -3995,7 +4002,7 @@
      "cdk-hnb659fds-assets-127537619055-ap-northeast-1"
     ],
     "SourceObjectKeys": [
-     "5498713fca475ad9c18eedb87756eae610ee3cc88f2271315f8de28d9ee16d59.zip"
+     "41f4bce4055038d614858533f12f393cb9376008d912fddbd92c7c548d52e62f.zip"
     ],
     "DestinationBucketName": {
      "Ref": "FrontendBucketEFE2E19C"
@@ -4222,7 +4229,7 @@
       "Compress": true,
       "FunctionAssociations": [
        {
-        "EventType": "viewer-request",
+        "EventType": "viewer-response",
         "FunctionARN": {
          "Fn::GetAtt": [
           "CorsPreflightFunction9710251B",
@@ -4301,7 +4308,7 @@
   "CDKMetadata": {
    "Type": "AWS::CDK::Metadata",
    "Properties": {
-    "Analytics": "v2:deflate64:H4sIAAAAAAAA/3VS204jMQz9Ft7TLBQh7etQhBYJBDtd8Vq5iRlCcxnihGoUzb+TC7Sw2n0ZHzvHHp+TLPny4pSfnsCeFkLuFlpteVoHEDuWS5tEr8TT74gR2erJNlC/D04rMR2KLZ0ZnfN0GcUOQzn6QC0cO77lLbkEwpnJyYJxMq/wB7a6/rKCPBeFx0AGLAzo84o1L4SGZgajGiDgHqa3JU+/Qhi7URVCCSXNqoY6soFS6l0MDd3YgIOHoJwtlL/SypuZBrOVwFOuPKA3iqicX0crPolf8S1M6B/RV9Ja2UFjcAfGzBQYnnrXZNZ4dOho5yYBUVbOuxKYxFG7yaANvBl3dSjMTGgX5R6CeOap0+BNlV/Ax9mTd7kxXSkKXm1j3fTeq0HZTggkupF5jgp1hVVpuC4N/2N8G/MvF2bmi3EX+U10PQrnZZVa0Trf2cx6JBe9QFbVlYvJPhXSHYxjgc3yjS5ebvKLFFrxbk8rraq9bBUpOHMYU8cf8X0MY8zGWCeRv9CPt7Of/Ow8P/cXUmrhY5ZikPctvgO7BZGoCwMAAA=="
+    "Analytics": "v2:deflate64:H4sIAAAAAAAA/3VR0W7bMAz8lr4rWpYuH+CmKFagRTt72GtAy4ynRpY8kaoRCPr3QVKXrMX2It6RR0o8beRmu5brK1hopYbjyuhexo5BHQUstI/0i2T8FjCg2B1sBeV8dkar0zlZaRJ0LeNNUEfkXHpDNVw63vFKboAwieFkYXJDL+N36E25soAkCJVHpgksjOhl7ArPgoqSgFmPwLjA6XUj41fmuZl1FuSQaccwlpEV5FTrAld0bxlHD6ydzZIPtOiSMDD1A8i4O9hn9JMmyvW7YNUf4d/4AU7of6Avok7b0SC7syIJDZOMratrlnhx6GLnPgIRMskmBzHgbNxpQsuyGnd7TiShjAvDAqx+ytgY8FNZP4O32sE7yzLeamKv+1Be+uT1qG2jFBLdD2hZc3nCLjfc5Yb/Kd6N+ZcLSfhs3PZaxqZF5fxQVi2oQ05JtEgueIWibJc/Rtsxix5hnjOslu9N9nIPCymjZbPQzuhir9gFYjedx5TxF/wUeA6chHUDyhf69Lr5Ij9v5frqhbRe+WBZTyjbGn8DA+2xuQsDAAA="
    },
    "Metadata": {
     "aws:cdk:path": "WeddingPhotoStack/CDKMetadata/Default"

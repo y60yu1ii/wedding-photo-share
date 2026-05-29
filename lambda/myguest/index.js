@@ -1,113 +1,92 @@
 "use strict";
-var __defProp = Object.defineProperty;
-var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
-var __getOwnPropNames = Object.getOwnPropertyNames;
-var __hasOwnProp = Object.prototype.hasOwnProperty;
-var __export = (target, all) => {
-  for (var name in all)
-    __defProp(target, name, { get: all[name], enumerable: true });
-};
-var __copyProps = (to, from, except, desc) => {
-  if (from && typeof from === "object" || typeof from === "function") {
-    for (let key of __getOwnPropNames(from))
-      if (!__hasOwnProp.call(to, key) && key !== except)
-        __defProp(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
-  }
-  return to;
-};
-var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
-
-// lambda/myguest/index.ts
-var index_exports = {};
-__export(index_exports, {
-  handler: () => handler
-});
-module.exports = __toCommonJS(index_exports);
-var import_client_dynamodb = require("@aws-sdk/client-dynamodb");
-var import_lib_dynamodb = require("@aws-sdk/lib-dynamodb");
-var import_client_s3 = require("@aws-sdk/client-s3");
-var import_s3_request_presigner = require("@aws-sdk/s3-request-presigner");
-var dynamo = import_lib_dynamodb.DynamoDBDocumentClient.from(new import_client_dynamodb.DynamoDBClient({}));
-var s3 = new import_client_s3.S3Client({});
-async function getMyPhotos(eventId, keyHash) {
-  const resp = await dynamo.send(
-    new import_lib_dynamodb.QueryCommand({
-      TableName: process.env.PHOTOS_TABLE,
-      IndexName: "eventId-status-index",
-      KeyConditionExpression: "eventId = :eid",
-      ExpressionAttributeValues: { ":eid": eventId }
-    })
-  );
-  return (resp.Items ?? []).filter((p) => p.keyHash === keyHash);
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.handler = handler;
+const client_dynamodb_1 = require("@aws-sdk/client-dynamodb");
+const lib_dynamodb_1 = require("@aws-sdk/lib-dynamodb");
+const client_s3_1 = require("@aws-sdk/client-s3");
+const s3_request_presigner_1 = require("@aws-sdk/s3-request-presigner");
+const dynamo = lib_dynamodb_1.DynamoDBDocumentClient.from(new client_dynamodb_1.DynamoDBClient({}));
+const s3 = new client_s3_1.S3Client({});
+// GET /myguest/photos?eventId=xxx&nickname=yyy
+async function getMyPhotos(eventId, nickname) {
+    const resp = await dynamo.send(new lib_dynamodb_1.QueryCommand({
+        TableName: process.env.PHOTOS_TABLE,
+        IndexName: "eventId-nickname-index",
+        KeyConditionExpression: "eventId = :eid AND nickname = :nick",
+        ExpressionAttributeValues: { ":eid": eventId, ":nick": nickname },
+    }));
+    return resp.Items ?? [];
 }
+// Presign photo for display
 async function presignPhoto(s3Key) {
-  const cmd = new import_client_s3.GetObjectCommand({
-    Bucket: process.env.PHOTO_BUCKET,
-    Key: s3Key
-  });
-  return (0, import_s3_request_presigner.getSignedUrl)(s3, cmd, { expiresIn: 3600 });
+    const cmd = new client_s3_1.GetObjectCommand({
+        Bucket: process.env.PHOTO_BUCKET,
+        Key: s3Key,
+    });
+    return (0, s3_request_presigner_1.getSignedUrl)(s3, cmd, { expiresIn: 900 });
 }
-async function deletePhoto(photoId, eventId, keyHash) {
-  const photo = await dynamo.send(
-    new import_lib_dynamodb.QueryCommand({
-      TableName: process.env.PHOTOS_TABLE,
-      KeyConditionExpression: "PK = :pk",
-      ExpressionAttributeValues: { ":pk": photoId }
-    })
-  );
-  if (!photo.Items?.length) throw new Error("Photo not found");
-  await s3.send(
-    new import_client_s3.DeleteObjectCommand({
-      Bucket: process.env.PHOTO_BUCKET,
-      Key: photo.Items[0].s3Key
-    })
-  );
-  await dynamo.send(
-    new import_lib_dynamodb.DeleteCommand({
-      TableName: process.env.PHOTOS_TABLE,
-      Key: { PK: photoId, SK: "METADATA" }
-    })
-  );
-  return { photoId };
+// DELETE /myguest/photos/{photoId}
+async function deletePhoto(photoId, eventId, nickname) {
+    // Get photo to verify ownership
+    const photo = await dynamo.send(new lib_dynamodb_1.GetCommand({
+        TableName: process.env.PHOTOS_TABLE,
+        Key: { PK: photoId, SK: "METADATA" },
+    }));
+    if (!photo.Item) {
+        return { statusCode: 404, body: JSON.stringify({ error: "Photo not found" }) };
+    }
+    if (photo.Item.eventId !== eventId || photo.Item.nickname !== nickname) {
+        return { statusCode: 403, body: JSON.stringify({ error: "Nickname mismatch" }) };
+    }
+    // Delete from S3
+    await s3.send(new client_s3_1.DeleteObjectCommand({
+        Bucket: process.env.PHOTO_BUCKET,
+        Key: photo.Item.s3Key,
+    }));
+    // Delete from DynamoDB
+    await dynamo.send(new lib_dynamodb_1.DeleteCommand({
+        TableName: process.env.PHOTOS_TABLE,
+        Key: { PK: photoId, SK: "METADATA" },
+    }));
+    return { statusCode: 200, body: JSON.stringify({ photoId }) };
 }
 async function handler(event) {
-  const method = event.requestContext?.http?.method ?? event.httpMethod ?? "GET";
-  const path = event.requestContext?.http?.path ?? event.path ?? "";
-  const query = event.queryStringParameters ?? {};
-  try {
-    if (path === "/myguest/photos" && method === "GET") {
-      const { eventId, keyHash } = query;
-      if (!eventId || !keyHash) {
-        return { statusCode: 400, body: JSON.stringify({ error: "missing params" }) };
-      }
-      const photos = await getMyPhotos(eventId, keyHash);
-      const withUrls = await Promise.all(
-        photos.map(async (p) => ({
-          PK: p.PK,
-          nickname: p.nickname,
-          status: p.status,
-          presignedUrl: p.s3Key ? await presignPhoto(p.s3Key) : void 0
-        }))
-      );
-      return { statusCode: 200, body: JSON.stringify({ photos: withUrls }) };
+    const method = event.requestContext?.http?.method ?? event.httpMethod ?? "GET";
+    const path = event.requestContext?.http?.path ?? event.path ?? "";
+    const query = event.queryStringParameters ?? {};
+    try {
+        // GET /myguest/photos?eventId=xxx&nickname=yyy
+        if (path === "/myguest/photos" && method === "GET") {
+            const { eventId, nickname } = query;
+            if (!eventId || !nickname) {
+                return { statusCode: 400, body: JSON.stringify({ error: "missing params" }) };
+            }
+            const photos = await getMyPhotos(eventId, nickname);
+            // Attach presigned URLs
+            const withUrls = await Promise.all(photos.map(async (p) => ({
+                PK: p.PK,
+                nickname: p.nickname,
+                status: p.status,
+                presignedUrl: p.s3Key ? await presignPhoto(p.s3Key) : undefined,
+            })));
+            return { statusCode: 200, body: JSON.stringify({ photos: withUrls }) };
+        }
+        // DELETE /myguest/photos/{photoId}
+        const deleteMatch = path.match(/^\/myguest\/photos\/(.+)$/);
+        if (deleteMatch && method === "DELETE") {
+            const photoId = deleteMatch[1];
+            const body = JSON.parse(event.body ?? "{}");
+            const { eventId, nickname } = body;
+            if (!eventId || !nickname) {
+                return { statusCode: 400, body: JSON.stringify({ error: "missing params" }) };
+            }
+            return await deletePhoto(photoId, eventId, nickname);
+        }
+        return { statusCode: 404, body: JSON.stringify({ error: "Not found" }) };
     }
-    const deleteMatch = path.match(/^\/myguest\/photos\/(.+)$/);
-    if (deleteMatch && method === "DELETE") {
-      const photoId = deleteMatch[1];
-      const { eventId, keyHash } = query;
-      if (!eventId || !keyHash) {
-        return { statusCode: 400, body: JSON.stringify({ error: "missing params" }) };
-      }
-      const result = await deletePhoto(photoId, eventId, keyHash);
-      return { statusCode: 200, body: JSON.stringify(result) };
+    catch (err) {
+        console.error("MyGuest Lambda error:", err);
+        return { statusCode: 500, body: JSON.stringify({ error: "Internal error" }) };
     }
-    return { statusCode: 404, body: JSON.stringify({ error: "Not found" }) };
-  } catch (err) {
-    console.error("MyGuest Lambda error:", err);
-    return { statusCode: 500, body: JSON.stringify({ error: "Internal error" }) };
-  }
 }
-// Annotate the CommonJS export names for ESM import in node:
-0 && (module.exports = {
-  handler
-});
+//# sourceMappingURL=index.js.map

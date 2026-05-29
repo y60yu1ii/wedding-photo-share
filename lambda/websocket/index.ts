@@ -4,6 +4,7 @@ import {
   PutCommand,
   DeleteCommand,
   ScanCommand,
+  QueryCommand,
 } from "@aws-sdk/lib-dynamodb";
 import { ApiGatewayManagementApiClient, PostToConnectionCommand } from "@aws-sdk/client-apigatewaymanagementapi";
 
@@ -12,22 +13,22 @@ const dynamo = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 async function sendToAll(eventId: string, message: object) {
   // Find all connections for this event
   const resp = await dynamo.send(
-    new ScanCommand({
+    new QueryCommand({
       TableName: process.env.CONNECTIONS_TABLE!,
-      FilterExpression: "eventId = :eid",
-      ExpressionAttributeValues: { ":eid": eventId },
+      KeyConditionExpression: "PK = :pk",
+      ExpressionAttributeValues: { ":pk": `EVENT-${eventId}` },
     })
   );
   const connections = resp.Items ?? [];
 
-  const apiUrl = process.env.WEBSOCKET_API_URL!;
+  const apiUrl = connections[0]?.wsEndpoint ?? process.env.WEBSOCKET_API_URL!;
   const mgmt = new ApiGatewayManagementApiClient({ endpoint: apiUrl });
 
   await Promise.allSettled(
     connections.map((conn: any) =>
       mgmt.send(
         new PostToConnectionCommand({
-          ConnectionId: conn.PK.replace("CONN#", ""),
+          ConnectionId: conn.connectionId,
           Data: Buffer.from(JSON.stringify(message)),
         })
       )
@@ -43,13 +44,16 @@ export async function handler(event: any) {
     // $connect — store connection with eventId from query
     if (routeKey === "$connect") {
       const eventId = event.queryStringParameters?.eventId ?? "";
+      const wsEndpoint = `https://${event.requestContext.domainName}/${event.requestContext.stage}`;
       await dynamo.send(
         new PutCommand({
           TableName: process.env.CONNECTIONS_TABLE!,
           Item: {
-            PK: `CONN#${connectionId}`,
-            SK: "METADATA",
+            PK: `EVENT-${eventId}`,
+            SK: `CONN#${connectionId}`,
+            connectionId,
             eventId,
+            wsEndpoint,
             connectedAt: new Date().toISOString(),
             expireAt: Math.floor(Date.now() / 1000) + 86400, // 24h TTL
           },
@@ -60,12 +64,23 @@ export async function handler(event: any) {
 
     // $disconnect — remove connection
     if (routeKey === "$disconnect") {
-      await dynamo.send(
-        new DeleteCommand({
+      const conn = await dynamo.send(
+        new ScanCommand({
           TableName: process.env.CONNECTIONS_TABLE!,
-          Key: { PK: `CONN#${connectionId}`, SK: "METADATA" },
+          FilterExpression: "connectionId = :cid",
+          ExpressionAttributeValues: { ":cid": connectionId },
+          Limit: 1,
         })
       );
+      const row = conn.Items?.[0];
+      if (row) {
+        await dynamo.send(
+          new DeleteCommand({
+            TableName: process.env.CONNECTIONS_TABLE!,
+            Key: { PK: row.PK, SK: row.SK },
+          })
+        );
+      }
       return { statusCode: 200, body: "Disconnected" };
     }
 

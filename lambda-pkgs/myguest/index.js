@@ -1,1 +1,92 @@
-"use strict";var u=Object.defineProperty;var l=Object.getOwnPropertyDescriptor;var C=Object.getOwnPropertyNames;var w=Object.prototype.hasOwnProperty;var O=(t,e)=>{for(var r in e)u(t,r,{get:e[r],enumerable:!0})},T=(t,e,r,n)=>{if(e&&typeof e=="object"||typeof e=="function")for(let s of C(e))!w.call(t,s)&&s!==r&&u(t,s,{get:()=>e[s],enumerable:!(n=l(e,s))||n.enumerable});return t};var E=t=>T(u({},"__esModule",{value:!0}),t);var N={};O(N,{handler:()=>S});module.exports=E(N);var h=require("@aws-sdk/client-dynamodb"),o=require("@aws-sdk/lib-dynamodb"),a=require("@aws-sdk/client-s3"),g=require("@aws-sdk/s3-request-presigner"),p=o.DynamoDBDocumentClient.from(new h.DynamoDBClient({})),f=new a.S3Client({});async function P(t,e){return((await p.send(new o.QueryCommand({TableName:process.env.PHOTOS_TABLE,IndexName:"eventId-status-index",KeyConditionExpression:"eventId = :eid",ExpressionAttributeValues:{":eid":t}}))).Items??[]).filter(n=>n.keyHash===e)}async function K(t){let e=new a.GetObjectCommand({Bucket:process.env.PHOTO_BUCKET,Key:t});return(0,g.getSignedUrl)(f,e,{expiresIn:3600})}async function b(t,e,r){let n=await p.send(new o.QueryCommand({TableName:process.env.PHOTOS_TABLE,KeyConditionExpression:"PK = :pk",ExpressionAttributeValues:{":pk":t}}));if(!n.Items?.length)throw new Error("Photo not found");return await f.send(new a.DeleteObjectCommand({Bucket:process.env.PHOTO_BUCKET,Key:n.Items[0].s3Key})),await p.send(new o.DeleteCommand({TableName:process.env.PHOTOS_TABLE,Key:{PK:t,SK:"METADATA"}})),{photoId:t}}async function S(t){let e=t.requestContext?.http?.method??t.httpMethod??"GET",r=t.requestContext?.http?.path??t.path??"",n=t.queryStringParameters??{};try{if(r==="/myguest/photos"&&e==="GET"){let{eventId:m,keyHash:i}=n;if(!m||!i)return{statusCode:400,body:JSON.stringify({error:"missing params"})};let y=await P(m,i),c=await Promise.all(y.map(async d=>({PK:d.PK,nickname:d.nickname,status:d.status,presignedUrl:d.s3Key?await K(d.s3Key):void 0})));return{statusCode:200,body:JSON.stringify({photos:c})}}let s=r.match(/^\/myguest\/photos\/(.+)$/);if(s&&e==="DELETE"){let m=s[1],{eventId:i,keyHash:y}=n;if(!i||!y)return{statusCode:400,body:JSON.stringify({error:"missing params"})};let c=await b(m,i,y);return{statusCode:200,body:JSON.stringify(c)}}return{statusCode:404,body:JSON.stringify({error:"Not found"})}}catch(s){return console.error("MyGuest Lambda error:",s),{statusCode:500,body:JSON.stringify({error:"Internal error"})}}}0&&(module.exports={handler});
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.handler = handler;
+const client_dynamodb_1 = require("@aws-sdk/client-dynamodb");
+const lib_dynamodb_1 = require("@aws-sdk/lib-dynamodb");
+const client_s3_1 = require("@aws-sdk/client-s3");
+const s3_request_presigner_1 = require("@aws-sdk/s3-request-presigner");
+const dynamo = lib_dynamodb_1.DynamoDBDocumentClient.from(new client_dynamodb_1.DynamoDBClient({}));
+const s3 = new client_s3_1.S3Client({});
+// GET /myguest/photos?eventId=xxx&nickname=yyy
+async function getMyPhotos(eventId, nickname) {
+    const resp = await dynamo.send(new lib_dynamodb_1.QueryCommand({
+        TableName: process.env.PHOTOS_TABLE,
+        IndexName: "eventId-nickname-index",
+        KeyConditionExpression: "eventId = :eid AND nickname = :nick",
+        ExpressionAttributeValues: { ":eid": eventId, ":nick": nickname },
+    }));
+    return resp.Items ?? [];
+}
+// Presign photo for display
+async function presignPhoto(s3Key) {
+    const cmd = new client_s3_1.GetObjectCommand({
+        Bucket: process.env.PHOTO_BUCKET,
+        Key: s3Key,
+    });
+    return (0, s3_request_presigner_1.getSignedUrl)(s3, cmd, { expiresIn: 900 });
+}
+// DELETE /myguest/photos/{photoId}
+async function deletePhoto(photoId, eventId, nickname) {
+    // Get photo to verify ownership
+    const photo = await dynamo.send(new lib_dynamodb_1.GetCommand({
+        TableName: process.env.PHOTOS_TABLE,
+        Key: { PK: photoId, SK: "METADATA" },
+    }));
+    if (!photo.Item) {
+        return { statusCode: 404, body: JSON.stringify({ error: "Photo not found" }) };
+    }
+    if (photo.Item.eventId !== eventId || photo.Item.nickname !== nickname) {
+        return { statusCode: 403, body: JSON.stringify({ error: "Nickname mismatch" }) };
+    }
+    // Delete from S3
+    await s3.send(new client_s3_1.DeleteObjectCommand({
+        Bucket: process.env.PHOTO_BUCKET,
+        Key: photo.Item.s3Key,
+    }));
+    // Delete from DynamoDB
+    await dynamo.send(new lib_dynamodb_1.DeleteCommand({
+        TableName: process.env.PHOTOS_TABLE,
+        Key: { PK: photoId, SK: "METADATA" },
+    }));
+    return { statusCode: 200, body: JSON.stringify({ photoId }) };
+}
+async function handler(event) {
+    const method = event.requestContext?.http?.method ?? event.httpMethod ?? "GET";
+    const path = event.requestContext?.http?.path ?? event.path ?? "";
+    const query = event.queryStringParameters ?? {};
+    try {
+        // GET /myguest/photos?eventId=xxx&nickname=yyy
+        if (path === "/myguest/photos" && method === "GET") {
+            const { eventId, nickname } = query;
+            if (!eventId || !nickname) {
+                return { statusCode: 400, body: JSON.stringify({ error: "missing params" }) };
+            }
+            const photos = await getMyPhotos(eventId, nickname);
+            // Attach presigned URLs
+            const withUrls = await Promise.all(photos.map(async (p) => ({
+                PK: p.PK,
+                nickname: p.nickname,
+                status: p.status,
+                presignedUrl: p.s3Key ? await presignPhoto(p.s3Key) : undefined,
+            })));
+            return { statusCode: 200, body: JSON.stringify({ photos: withUrls }) };
+        }
+        // DELETE /myguest/photos/{photoId}
+        const deleteMatch = path.match(/^\/myguest\/photos\/(.+)$/);
+        if (deleteMatch && method === "DELETE") {
+            const photoId = deleteMatch[1];
+            const body = JSON.parse(event.body ?? "{}");
+            const { eventId, nickname } = body;
+            if (!eventId || !nickname) {
+                return { statusCode: 400, body: JSON.stringify({ error: "missing params" }) };
+            }
+            return await deletePhoto(photoId, eventId, nickname);
+        }
+        return { statusCode: 404, body: JSON.stringify({ error: "Not found" }) };
+    }
+    catch (err) {
+        console.error("MyGuest Lambda error:", err);
+        return { statusCode: 500, body: JSON.stringify({ error: "Internal error" }) };
+    }
+}
+//# sourceMappingURL=index.js.map

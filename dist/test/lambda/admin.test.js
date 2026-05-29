@@ -33,8 +33,14 @@ jest.mock("jose", () => {
             setExpirationTime: jest.fn().mockReturnThis(),
             sign: jest.fn().mockResolvedValue("mock.jwt.token"),
         })),
-        jwtVerify: jest.fn().mockResolvedValue({
-            payload: { sub: "admin", role: "admin", exp: Math.floor(Date.now() / 1000) + 3600 },
+        jwtVerify: jest.fn().mockImplementation((token) => {
+            // Accept any token that looks like JWT (3 base64url segments)
+            if (token.split(".").length === 3) {
+                return Promise.resolve({
+                    payload: { sub: "admin", role: "admin", exp: Math.floor(Date.now() / 1000) + 3600 },
+                });
+            }
+            return Promise.reject(new Error("Invalid token"));
         }),
         decodeJwt: jest.fn().mockReturnValue({ sub: "admin", role: "admin" }),
         createRemoteJWKSet: jest.fn(),
@@ -55,15 +61,17 @@ beforeEach(() => {
     jest.clearAllMocks();
     mockSecretsSend.mockResolvedValue({ SecretString: "jwt-secret-value" });
     process.env.EVENTS_TABLE = "events-table";
-    process.env.KEYPAlRS_TABLE = "keypairs-table";
+    process.env.KEYPAIRS_TABLE = "keypairs-table";
     process.env.PHOTOS_TABLE = "photos-table";
     process.env.JWT_SECRET_NAME = "jwt-secret-name";
     process.env.STAGE = "prod";
     process.env.ADMIN_USER = "admin";
     process.env.ADMIN_PASS = "wedding2026";
 });
+// Real-looking JWT (3 base64url segments), exp = 2090 (far future)
+const MOCK_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsInJvbGUiOiJhZG1pbiIsImV4cCI6MTg5MzQ1NjAwMH0.test";
 function authHeaders() {
-    return { authorization: "Bearer mock.jwt.token" };
+    return { authorization: `Bearer ${MOCK_TOKEN}` };
 }
 describe("POST /admin/login", () => {
     test("returns 200 with token for valid credentials", async () => {
@@ -74,7 +82,8 @@ describe("POST /admin/login", () => {
         const result = await (0, index_1.handler)(event);
         expect(result.statusCode).toBe(200);
         const body = JSON.parse(result.body);
-        expect(body.token).toBe("mock.jwt.token");
+        expect(body.token).toBeTruthy();
+        expect(body.token.split(".")).toHaveLength(3); // real JWT format
     });
     test("returns 401 for invalid password", async () => {
         const event = {

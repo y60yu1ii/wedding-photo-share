@@ -152,10 +152,10 @@ async function getEvent(eventId: string) {
 
 async function listEventPhotos(eventId: string) {
   const resp = await dynamo.send(
-    new QueryCommand({
+    new ScanCommand({
       TableName: process.env.PHOTOS_TABLE!,
-      KeyConditionExpression: "PK = :pk AND begins_with(SK, :sk)",
-      ExpressionAttributeValues: { ":pk": eventId, ":sk": "PHOTO#" },
+      FilterExpression: "eventId = :eid",
+      ExpressionAttributeValues: { ":eid": eventId },
     })
   );
   return resp.Items ?? [];

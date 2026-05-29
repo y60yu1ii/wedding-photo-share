@@ -183,7 +183,7 @@ class WeddingPhotoStack extends cdk.Stack {
             handler: "index.handler",
             environment: {
                 EVENTS_TABLE: this.eventsTable.tableName,
-                KEYPAlRS_TABLE: this.keypairsTable.tableName,
+                KEYPAIRS_TABLE: this.keypairsTable.tableName,
                 PHOTOS_TABLE: this.photosTable.tableName,
                 JWT_SECRET_NAME: jwtSecret.secretName,
                 STAGE,
@@ -195,6 +195,7 @@ class WeddingPhotoStack extends cdk.Stack {
             handler: "index.handler",
             environment: {
                 PHOTOS_TABLE: this.photosTable.tableName,
+                KEYPAIRS_TABLE: this.keypairsTable.tableName,
                 CONNECTIONS_TABLE: this.connectionsTable.tableName,
                 PHOTO_BUCKET: this.photoBucket.bucketName,
                 WEBSOCKET_API_URL: wsApiUrl,
@@ -242,7 +243,7 @@ class WeddingPhotoStack extends cdk.Stack {
         }
         this.photoBucket.grantReadWrite(this.uploadLambda);
         this.photoBucket.grantRead(this.slideshowLambda);
-        this.photoBucket.grantRead(this.myguestLambda);
+        this.photoBucket.grantReadWrite(this.myguestLambda);
         jwtSecret.grantRead(this.adminLambda);
         this.dlq.grantSendMessages(this.uploadLambda);
         // ---------------------------------------------------------------------------
@@ -254,32 +255,37 @@ class WeddingPhotoStack extends cdk.Stack {
         const myguestInt = new integrations.HttpLambdaIntegration("MyGuestIntegration", this.myguestLambda);
         this.restApi.addRoutes({
             path: "/admin/login",
-            methods: [apigwv2.HttpMethod.ANY],
+            methods: [apigwv2.HttpMethod.ANY, apigwv2.HttpMethod.OPTIONS],
             integration: adminInt,
         });
         this.restApi.addRoutes({
             path: "/admin/events",
-            methods: [apigwv2.HttpMethod.ANY],
+            methods: [apigwv2.HttpMethod.ANY, apigwv2.HttpMethod.OPTIONS],
             integration: adminInt,
         });
         this.restApi.addRoutes({
             path: "/admin/events/{eventId}",
-            methods: [apigwv2.HttpMethod.ANY],
+            methods: [apigwv2.HttpMethod.ANY, apigwv2.HttpMethod.OPTIONS],
+            integration: adminInt,
+        });
+        this.restApi.addRoutes({
+            path: "/admin/events/{eventId}/photos",
+            methods: [apigwv2.HttpMethod.GET],
             integration: adminInt,
         });
         this.restApi.addRoutes({
             path: "/admin/photos/{photoId}",
-            methods: [apigwv2.HttpMethod.ANY],
+            methods: [apigwv2.HttpMethod.ANY, apigwv2.HttpMethod.OPTIONS],
             integration: adminInt,
         });
         this.restApi.addRoutes({
             path: "/upload/presign",
-            methods: [apigwv2.HttpMethod.ANY],
+            methods: [apigwv2.HttpMethod.ANY, apigwv2.HttpMethod.OPTIONS],
             integration: uploadInt,
         });
         this.restApi.addRoutes({
             path: "/upload/confirm",
-            methods: [apigwv2.HttpMethod.ANY],
+            methods: [apigwv2.HttpMethod.ANY, apigwv2.HttpMethod.OPTIONS],
             integration: uploadInt,
         });
         this.restApi.addRoutes({
@@ -412,12 +418,24 @@ class WeddingPhotoStack extends cdk.Stack {
         // API subdomain CloudFront → API Gateway
         // Use same wildcard cert for API subdomain (already validated)
         const apiCert = certificatemanager.Certificate.fromCertificateArn(this, "ApiCert", "arn:aws:acm:us-east-1:127537619055:certificate/94ea226c-488d-491d-8a23-0e80d0e2ef73");
+        // CloudFront Function to handle CORS preflight directly at edge (bypasses API Gateway)
+        const corsFunction = new cloudfront.Function(this, "CorsPreflightFunction", {
+            functionName: `wedding-cors-${STAGE}`,
+            code: cloudfront.FunctionCode.fromFile({
+                filePath: "cloudfront/cors-handler.js",
+            }),
+        });
         const apiDist = new cloudfront.Distribution(this, "ApiCloudFront", {
             domainNames: ["api.fishare.de"],
             certificate: apiCert,
             defaultBehavior: {
                 origin: new origins.HttpOrigin(`${this.restApi.httpApiId}.execute-api.${this.region}.amazonaws.com`),
                 viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+                allowedMethods: cloudfront.AllowedMethods.ALLOW_ALL,
+                functionAssociations: [{
+                        function: corsFunction,
+                        eventType: cloudfront.FunctionEventType.VIEWER_RESPONSE,
+                    }],
             },
         });
         new route53.ARecord(this, "ApiAlias", {

@@ -98,7 +98,7 @@ export const events = {
     return data.photos ?? [];
   },
   async approvePhoto(photoId: string) {
-    const res = await request(`/admin/photos/${photoId}`, {
+    const res = await request(`/admin/photos/${encodeURIComponent(photoId)}`, {
       method: "PATCH",
       token: true,
       body: JSON.stringify({ status: "approved" }),
@@ -126,16 +126,16 @@ export const slideshow = {
 };
 
 export const myguest = {
-  async photos(eventId: string) {
-    const res = await request(`/myguest/photos?eventId=${eventId}`);
+  async photos(eventId: string, nickname: string) {
+    const res = await request(`/myguest/photos?eventId=${encodeURIComponent(eventId)}&nickname=${encodeURIComponent(nickname)}`);
     if (!res.ok) throw new Error("取得上傳記錄失敗");
     const data = await res.json();
     return data.photos ?? [];
   },
-  async delete(photoPK: string, eventId: string) {
-    const res = await request(`/myguest/photos/${photoPK}`, {
+  async delete(photoPK: string, eventId: string, nickname: string) {
+    const res = await request(`/myguest/photos/${encodeURIComponent(photoPK)}`, {
       method: "DELETE",
-      body: JSON.stringify({ eventId }),
+      body: JSON.stringify({ eventId, nickname }),
     });
     if (!res.ok) throw new Error("刪除失敗");
   },
@@ -151,8 +151,9 @@ export const upload = {
     if (!res.ok) throw new Error("取得上傳連結失敗");
     return res.json(); // { uploadUrl, photoId }
   },
-  async confirm(eventId: string, photoId: string, nickname: string) {
-    const res = await request("/upload/confirm", {
+  async confirm(eventId: string, photoId: string, nickname: string, key?: string) {
+    const url = key ? `/upload/confirm?key=${encodeURIComponent(key)}` : "/upload/confirm";
+    const res = await request(url, {
       method: "POST",
       body: JSON.stringify({ eventId, photoId, nickname }),
     });

@@ -3,6 +3,7 @@ import {
   DynamoDBDocumentClient,
   QueryCommand,
   DeleteCommand,
+  GetCommand,
 } from "@aws-sdk/lib-dynamodb";
 import { S3Client, GetObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
@@ -10,17 +11,17 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 const dynamo = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 const s3 = new S3Client({});
 
-// GET /myguest/photos?eventId=xxx → list photos uploaded by this keyHash
-async function getMyPhotos(eventId: string, keyHash: string) {
+// GET /myguest/photos?eventId=xxx&nickname=yyy
+async function getMyPhotos(eventId: string, nickname: string) {
   const resp = await dynamo.send(
     new QueryCommand({
       TableName: process.env.PHOTOS_TABLE!,
-      IndexName: "eventId-status-index",
-      KeyConditionExpression: "eventId = :eid",
-      ExpressionAttributeValues: { ":eid": eventId },
+      IndexName: "eventId-nickname-index",
+      KeyConditionExpression: "eventId = :eid AND nickname = :nick",
+      ExpressionAttributeValues: { ":eid": eventId, ":nick": nickname },
     })
   );
-  return (resp.Items ?? []).filter((p: any) => p.keyHash === keyHash);
+  return resp.Items ?? [];
 }
 
 // Presign photo for display
@@ -29,26 +30,30 @@ async function presignPhoto(s3Key: string): Promise<string> {
     Bucket: process.env.PHOTO_BUCKET!,
     Key: s3Key,
   });
-  return getSignedUrl(s3, cmd, { expiresIn: 3600 });
+  return getSignedUrl(s3, cmd, { expiresIn: 900 });
 }
 
-// DELETE /myguest/photos/{photoId}?eventId=xxx&keyHash=xxx
-async function deletePhoto(photoId: string, eventId: string, keyHash: string) {
+// DELETE /myguest/photos/{photoId}
+async function deletePhoto(photoId: string, eventId: string, nickname: string) {
   // Get photo to verify ownership
   const photo = await dynamo.send(
-    new QueryCommand({
+    new GetCommand({
       TableName: process.env.PHOTOS_TABLE!,
-      KeyConditionExpression: "PK = :pk",
-      ExpressionAttributeValues: { ":pk": photoId },
+      Key: { PK: photoId, SK: "METADATA" },
     })
   );
-  if (!photo.Items?.length) throw new Error("Photo not found");
+  if (!photo.Item) {
+    return { statusCode: 404, body: JSON.stringify({ error: "Photo not found" }) };
+  }
+  if (photo.Item.eventId !== eventId || photo.Item.nickname !== nickname) {
+    return { statusCode: 403, body: JSON.stringify({ error: "Nickname mismatch" }) };
+  }
 
   // Delete from S3
   await s3.send(
     new DeleteObjectCommand({
       Bucket: process.env.PHOTO_BUCKET!,
-      Key: photo.Items[0].s3Key,
+      Key: photo.Item.s3Key,
     })
   );
 
@@ -59,7 +64,7 @@ async function deletePhoto(photoId: string, eventId: string, keyHash: string) {
       Key: { PK: photoId, SK: "METADATA" },
     })
   );
-  return { photoId };
+  return { statusCode: 200, body: JSON.stringify({ photoId }) };
 }
 
 export async function handler(event: any) {
@@ -68,13 +73,13 @@ export async function handler(event: any) {
   const query = event.queryStringParameters ?? {};
 
   try {
-    // GET /myguest/photos?eventId=xxx&keyHash=xxx
+    // GET /myguest/photos?eventId=xxx&nickname=yyy
     if (path === "/myguest/photos" && method === "GET") {
-      const { eventId, keyHash } = query;
-      if (!eventId || !keyHash) {
+      const { eventId, nickname } = query;
+      if (!eventId || !nickname) {
         return { statusCode: 400, body: JSON.stringify({ error: "missing params" }) };
       }
-      const photos = await getMyPhotos(eventId, keyHash);
+      const photos = await getMyPhotos(eventId, nickname);
       // Attach presigned URLs
       const withUrls = await Promise.all(
         photos.map(async (p: any) => ({
@@ -91,12 +96,12 @@ export async function handler(event: any) {
     const deleteMatch = path.match(/^\/myguest\/photos\/(.+)$/);
     if (deleteMatch && method === "DELETE") {
       const photoId = deleteMatch[1];
-      const { eventId, keyHash } = query;
-      if (!eventId || !keyHash) {
+      const body = JSON.parse(event.body ?? "{}");
+      const { eventId, nickname } = body;
+      if (!eventId || !nickname) {
         return { statusCode: 400, body: JSON.stringify({ error: "missing params" }) };
       }
-      const result = await deletePhoto(photoId, eventId, keyHash);
-      return { statusCode: 200, body: JSON.stringify(result) };
+      return await deletePhoto(photoId, eventId, nickname);
     }
 
     return { statusCode: 404, body: JSON.stringify({ error: "Not found" }) };

@@ -17,7 +17,7 @@ function makeToken(secret, payload) {
     return new jose_1.SignJWT(payload)
         .setProtectedHeader({ alg: "HS256" })
         .setIssuedAt()
-        .setExpirationTime("8h")
+        .setExpirationTime("7d")
         .sign(new TextEncoder().encode(secret));
 }
 // ─── Key generation ───────────────────────────────────────────────────────
@@ -39,11 +39,16 @@ async function sha256(text) {
 }
 // ─── DynamoDB helpers ───────────────────────────────────────────────────
 async function listEvents() {
-    const resp = await dynamo.send(new lib_dynamodb_1.ScanCommand({ TableName: process.env.EVENTS_TABLE }));
+    const resp = await dynamo.send(new lib_dynamodb_1.ScanCommand({
+        TableName: process.env.EVENTS_TABLE,
+        FilterExpression: "#s <> :archived",
+        ExpressionAttributeNames: { "#s": "status" },
+        ExpressionAttributeValues: { ":archived": "archived" },
+    }));
     return (resp.Items ?? []).sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? ""));
 }
 async function createEvent(body) {
-    const PK = `EVENT#${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    const PK = `EVENT-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
     const now = new Date().toISOString();
     // Generate UPLOAD_KEY and SHOW_KEY
     const uploadKey = generateKey(16);
@@ -67,7 +72,7 @@ async function createEvent(body) {
     // Store keypairs (keyId = the hash prefix for lookups)
     await Promise.all([
         dynamo.send(new lib_dynamodb_1.PutCommand({
-            TableName: process.env.KEYPAlRS_TABLE,
+            TableName: process.env.KEYPAIRS_TABLE,
             Item: {
                 PK: `KEY#${uploadKeyHash.slice(0, 16)}`,
                 SK: "METADATA",
@@ -78,7 +83,7 @@ async function createEvent(body) {
             },
         })),
         dynamo.send(new lib_dynamodb_1.PutCommand({
-            TableName: process.env.KEYPAlRS_TABLE,
+            TableName: process.env.KEYPAIRS_TABLE,
             Item: {
                 PK: `KEY#${showKeyHash.slice(0, 16)}`,
                 SK: "METADATA",
@@ -107,6 +112,14 @@ async function getEvent(eventId) {
         hasKeys: !!(resp.Item.uploadKey && resp.Item.showKey),
     };
 }
+async function listEventPhotos(eventId) {
+    const resp = await dynamo.send(new lib_dynamodb_1.ScanCommand({
+        TableName: process.env.PHOTOS_TABLE,
+        FilterExpression: "eventId = :eid",
+        ExpressionAttributeValues: { ":eid": eventId },
+    }));
+    return resp.Items ?? [];
+}
 // Separate function to get event with actual keys (used only for admin display)
 async function getEventWithKeys(eventId) {
     const resp = await dynamo.send(new lib_dynamodb_1.GetCommand({ TableName: process.env.EVENTS_TABLE, Key: { PK: eventId, SK: "METADATA" } }));
@@ -129,7 +142,7 @@ async function deleteEvent(eventId) {
     // Delete all photos from S3 (would need separate Lambda for this)
     // Delete all keypairs via Scan (no GSI on keypairs table)
     const keypairsResp = await dynamo.send(new lib_dynamodb_1.ScanCommand({
-        TableName: process.env.KEYPAlRS_TABLE,
+        TableName: process.env.KEYPAIRS_TABLE,
         FilterExpression: "eventId = :eid",
         ExpressionAttributeValues: { ":eid": eventId },
     }));
@@ -142,7 +155,7 @@ async function deleteEvent(eventId) {
             ExpressionAttributeValues: { ":s": "archived" },
         })),
         ...(keypairsResp.Items ?? []).map((k) => dynamo.send(new lib_dynamodb_1.PutCommand({
-            TableName: process.env.KEYPAlRS_TABLE,
+            TableName: process.env.KEYPAIRS_TABLE,
             Item: { ...k, _deleted: true },
         }))),
     ]);
@@ -161,11 +174,7 @@ async function approvePhoto(photoId) {
 async function verifyToken(token) {
     try {
         const secret = await getJwtSecret();
-        const parts = token.split(".");
-        const payload = JSON.parse(atob(parts[1]));
-        // Simple expiry check
-        if (payload.exp && payload.exp < Date.now() / 1000)
-            return false;
+        await (0, jose_1.jwtVerify)(token, new TextEncoder().encode(secret));
         return true;
     }
     catch {
@@ -231,7 +240,7 @@ async function handler(event) {
         }
         // GET /admin/events/{eventId}
         if (path.match(/^\/admin\/events\/[^/]+$/) && method === "GET") {
-            const eventId = path.split("/")[3];
+            const eventId = decodeURIComponent(path.split("/")[3]);
             const evt = await getEventWithKeys(eventId);
             if (!evt)
                 return res(404, { error: "Not found" });
@@ -239,7 +248,7 @@ async function handler(event) {
         }
         // DELETE /admin/events/{eventId}
         if (path.match(/^\/admin\/events\/[^/]+$/) && method === "DELETE") {
-            const eventId = path.split("/")[3];
+            const eventId = decodeURIComponent(path.split("/")[3]);
             await deleteEvent(eventId);
             return res(200, { success: true });
         }
@@ -248,6 +257,12 @@ async function handler(event) {
             const photoId = path.split("/")[3];
             const result = await approvePhoto(photoId);
             return res(200, result);
+        }
+        // GET /admin/events/{eventId}/photos
+        if (path.match(/^\/admin\/events\/[^/]+\/photos$/) && method === "GET") {
+            const eventId = decodeURIComponent(path.split("/")[3]);
+            const photos = await listEventPhotos(eventId);
+            return res(200, { photos });
         }
         return res(404, { error: "Not found" });
     }

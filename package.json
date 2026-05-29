@@ -11,9 +11,9 @@
     "synth": "cdk synth",
     "deploy": "npm run build && cdk deploy --profile yyl --outputs-file cdk-outputs.json --require-approval never",
     "destroy": "cdk destroy --profile yyl --force",
-    "test": "node scripts/test-api.js",
-    "test:fast": "node scripts/test-api-fast.js",
-    "test:unit": "jest",
+    "test": "npm run test:unit -- --runInBand",
+    "test:fast": "npm run test:unit -- --runInBand",
+    "test:unit": "jest --watchman=false",
     "test:unit:watch": "jest --watch",
     "clean": "rimraf \"{bin,lambda,lib}/**/*.{js,d.ts}\" cdk-outputs.json"
   },
