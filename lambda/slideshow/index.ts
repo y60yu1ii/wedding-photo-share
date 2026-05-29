@@ -20,10 +20,28 @@ async function getSlideshowPhotos(eventId: string) {
       IndexName: "eventId-status-index",
       KeyConditionExpression: "eventId = :eid AND #s = :approved",
       ExpressionAttributeNames: { "#s": "status" },
-      ExpressionAttributeValues: { ":eid": eventId, ":approved": "approved" },
+      FilterExpression: "nickname <> :pendingNick AND attribute_exists(confirmedAt)",
+      ExpressionAttributeValues: {
+        ":eid": eventId,
+        ":approved": "approved",
+        ":pendingNick": "__pending__",
+      },
     })
   );
-  return resp.Items ?? [];
+  const items = resp.Items ?? [];
+
+  const withUrls = await Promise.all(
+    items.map(async (p: any) => {
+      if (!p.s3Key) return p;
+      const cmd = new GetObjectCommand({
+        Bucket: process.env.PHOTO_BUCKET!,
+        Key: p.s3Key,
+      });
+      const presignedUrl = await getSignedUrl(s3, cmd, { expiresIn: PRESIGN_EXPIRY });
+      return { ...p, presignedUrl };
+    })
+  );
+  return withUrls;
 }
 
 // GET /slideshow/presign/{photoId} → presigned GET URL for photo

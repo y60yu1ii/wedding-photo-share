@@ -211,11 +211,17 @@ async function broadcastNewPhoto(eventId, photoId, s3Key, nickname, greeting) {
     const wsUrl = items[0]?.wsEndpoint ?? process.env.WEBSOCKET_API_URL;
     if (!wsUrl || items.length === 0)
         return;
+    // Generate 15-minute S3 GET presigned URL for slideshow client
+    const s3GetCmd = new client_s3_1.GetObjectCommand({
+        Bucket: process.env.PHOTO_BUCKET,
+        Key: s3Key,
+    });
+    const presignedUrl = await (0, s3_request_presigner_1.getSignedUrl)(s3, s3GetCmd, { expiresIn: 900 });
     const wsClient = new client_apigatewaymanagementapi_1.ApiGatewayManagementApiClient({ endpoint: wsUrl });
     const message = JSON.stringify({
         type: "new_photo",
         photoId,
-        s3Key,
+        presignedUrl,
         nickname,
         greeting,
         uploadedAt: new Date().toISOString()
@@ -239,6 +245,55 @@ async function approvePhoto(photoId) {
         await broadcastNewPhoto(photo.eventId, photoId, photo.s3Key, photo.nickname, photo.greeting);
     }
     return { photoId, status: "approved" };
+}
+async function broadcastDeletePhoto(eventId, photoId) {
+    const connections = await dynamo.send(new lib_dynamodb_1.QueryCommand({
+        TableName: process.env.CONNECTIONS_TABLE,
+        KeyConditionExpression: "PK = :pk",
+        ExpressionAttributeValues: { ":pk": `EVENT-${eventId}` },
+    }));
+    const items = connections.Items ?? [];
+    if (items.length === 0)
+        return;
+    const wsUrl = items[0]?.wsEndpoint ?? process.env.WEBSOCKET_API_URL;
+    if (!wsUrl)
+        return;
+    const wsClient = new client_apigatewaymanagementapi_1.ApiGatewayManagementApiClient({ endpoint: wsUrl });
+    const message = JSON.stringify({
+        type: "delete_photo",
+        photoId,
+    });
+    await Promise.allSettled(items.map((conn) => wsClient.send(new client_apigatewaymanagementapi_1.PostToConnectionCommand({
+        ConnectionId: conn.connectionId,
+        Data: Buffer.from(message),
+    }))));
+}
+async function deletePhoto(photoId) {
+    const resp = await dynamo.send(new lib_dynamodb_1.GetCommand({
+        TableName: process.env.PHOTOS_TABLE,
+        Key: { PK: photoId, SK: "METADATA" },
+    }));
+    if (!resp.Item)
+        return null;
+    const photo = resp.Item;
+    const eventId = photo.eventId;
+    const s3Key = photo.s3Key;
+    const deletes = [];
+    if (s3Key) {
+        deletes.push(s3.send(new client_s3_1.DeleteObjectCommand({
+            Bucket: process.env.PHOTO_BUCKET,
+            Key: s3Key,
+        })).catch((err) => console.error("Failed to delete S3 photo object:", err)));
+    }
+    deletes.push(dynamo.send(new lib_dynamodb_1.DeleteCommand({
+        TableName: process.env.PHOTOS_TABLE,
+        Key: { PK: photoId, SK: "METADATA" },
+    })));
+    await Promise.all(deletes);
+    if (eventId) {
+        await broadcastDeletePhoto(eventId, photoId);
+    }
+    return { photoId };
 }
 // ─── Auth ────────────────────────────────────────────────────────────────
 async function verifyToken(token) {
@@ -364,6 +419,14 @@ async function handler(event) {
             const photoId = path.split("/")[3];
             const result = await approvePhoto(photoId);
             return res(200, result);
+        }
+        // DELETE /admin/photos/{photoId}
+        if (path.match(/^\/admin\/photos\/[^/]+$/) && method === "DELETE") {
+            const photoId = path.split("/")[3];
+            const result = await deletePhoto(photoId);
+            if (!result)
+                return res(404, { error: "Photo not found" });
+            return res(200, { success: true });
         }
         // GET /admin/events/{eventId}/photos
         if (path.match(/^\/admin\/events\/[^/]+\/photos$/) && method === "GET") {

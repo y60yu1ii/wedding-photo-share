@@ -273,6 +273,47 @@ describe("POST /admin/events (authenticated)", () => {
             expect(mockWsSend).toHaveBeenCalled();
         });
     });
+    describe("DELETE /admin/photos/{photoId} (authenticated)", () => {
+        test("deletes photo from S3 and database and broadcasts deletion", async () => {
+            mockSend
+                .mockResolvedValueOnce({
+                Item: {
+                    PK: "PHOTO#1",
+                    SK: "METADATA",
+                    eventId: "EVENT-1",
+                    s3Key: "prod/EVENT-1/PHOTO#1.jpg"
+                }
+            }) // GetCommand
+                .mockResolvedValueOnce({}) // DeleteCommand
+                .mockResolvedValueOnce({
+                Items: [
+                    { connectionId: "conn-1", wsEndpoint: "https://ws-endpoint" }
+                ]
+            }); // QueryCommand (connections)
+            mockS3Send.mockResolvedValue({});
+            mockWsSend.mockResolvedValue({});
+            const event = {
+                requestContext: { http: { method: "DELETE", path: "/admin/photos/PHOTO#1" } },
+                headers: authHeaders(),
+            };
+            const result = await (0, index_1.handler)(event);
+            expect(result.statusCode).toBe(200);
+            expect(JSON.parse(result.body).success).toBe(true);
+            // Verify S3 delete was called
+            expect(mockS3Send).toHaveBeenCalled();
+            // Verify WebSocket broadcast was sent
+            expect(mockWsSend).toHaveBeenCalled();
+        });
+        test("returns 404 if photo not found", async () => {
+            mockSend.mockResolvedValueOnce({ Item: null });
+            const event = {
+                requestContext: { http: { method: "DELETE", path: "/admin/photos/NON-EXISTENT" } },
+                headers: authHeaders(),
+            };
+            const result = await (0, index_1.handler)(event);
+            expect(result.statusCode).toBe(404);
+        });
+    });
 });
 describe("Unknown routes", () => {
     test("returns 404 for unknown path", async () => {
