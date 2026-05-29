@@ -1,0 +1,9 @@
+{
+	"/": [],
+	"/admin": [],
+	"/admin/event/[eventId]": [],
+	"/admin/login": [],
+	"/event/[eventId]": [],
+	"/event/[eventId]/upload": [],
+	"/myguest/[eventId]": []
+}

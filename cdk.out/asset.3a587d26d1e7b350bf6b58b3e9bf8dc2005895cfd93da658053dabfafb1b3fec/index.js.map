@@ -1,0 +1,7 @@
+{
+  "version": 3,
+  "sources": ["../asset-input/lambda/myguest/index.ts"],
+  "sourcesContent": ["export async function handler(event: any) {\n  return { statusCode: 200, body: JSON.stringify({ message: \"myguest stub\" }) };\n}\n"],
+  "mappings": "yaAAA,IAAAA,EAAA,GAAAC,EAAAD,EAAA,aAAAE,IAAA,eAAAC,EAAAH,GAAA,eAAsBE,EAAQE,EAAY,CACxC,MAAO,CAAE,WAAY,IAAK,KAAM,KAAK,UAAU,CAAE,QAAS,cAAe,CAAC,CAAE,CAC9E",
+  "names": ["myguest_exports", "__export", "handler", "__toCommonJS", "event"]
+}

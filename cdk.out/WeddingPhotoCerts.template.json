@@ -1,0 +1,459 @@
+{
+ "Resources": {
+  "SiteCertCertificateRequestorFunctionServiceRoleA385B09C": {
+   "Type": "AWS::IAM::Role",
+   "Properties": {
+    "AssumeRolePolicyDocument": {
+     "Statement": [
+      {
+       "Action": "sts:AssumeRole",
+       "Effect": "Allow",
+       "Principal": {
+        "Service": "lambda.amazonaws.com"
+       }
+      }
+     ],
+     "Version": "2012-10-17"
+    },
+    "ManagedPolicyArns": [
+     {
+      "Fn::Join": [
+       "",
+       [
+        "arn:",
+        {
+         "Ref": "AWS::Partition"
+        },
+        ":iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+       ]
+      ]
+     }
+    ]
+   },
+   "Metadata": {
+    "aws:cdk:path": "WeddingPhotoCerts/SiteCert/CertificateRequestorFunction/ServiceRole/Resource"
+   }
+  },
+  "SiteCertCertificateRequestorFunctionServiceRoleDefaultPolicyF4AE763F": {
+   "Type": "AWS::IAM::Policy",
+   "Properties": {
+    "PolicyDocument": {
+     "Statement": [
+      {
+       "Action": [
+        "acm:RequestCertificate",
+        "acm:DescribeCertificate",
+        "acm:DeleteCertificate",
+        "acm:AddTagsToCertificate"
+       ],
+       "Effect": "Allow",
+       "Resource": "*"
+      },
+      {
+       "Action": "route53:GetChange",
+       "Effect": "Allow",
+       "Resource": "*"
+      },
+      {
+       "Action": "route53:changeResourceRecordSets",
+       "Condition": {
+        "ForAllValues:StringEquals": {
+         "route53:ChangeResourceRecordSetsRecordTypes": [
+          "CNAME"
+         ],
+         "route53:ChangeResourceRecordSetsActions": [
+          "UPSERT"
+         ]
+        },
+        "ForAllValues:StringLike": {
+         "route53:ChangeResourceRecordSetsNormalizedRecordNames": [
+          "*.wedding.fishare.de",
+          "*.fishare.de"
+         ]
+        }
+       },
+       "Effect": "Allow",
+       "Resource": {
+        "Fn::Join": [
+         "",
+         [
+          "arn:",
+          {
+           "Ref": "AWS::Partition"
+          },
+          ":route53:::hostedzone/Z3RXA1N6WFQCGC"
+         ]
+        ]
+       }
+      }
+     ],
+     "Version": "2012-10-17"
+    },
+    "PolicyName": "SiteCertCertificateRequestorFunctionServiceRoleDefaultPolicyF4AE763F",
+    "Roles": [
+     {
+      "Ref": "SiteCertCertificateRequestorFunctionServiceRoleA385B09C"
+     }
+    ]
+   },
+   "Metadata": {
+    "aws:cdk:path": "WeddingPhotoCerts/SiteCert/CertificateRequestorFunction/ServiceRole/DefaultPolicy/Resource"
+   }
+  },
+  "SiteCertCertificateRequestorFunctionAC347388": {
+   "Type": "AWS::Lambda::Function",
+   "Properties": {
+    "Code": {
+     "S3Bucket": "cdk-hnb659fds-assets-127537619055-us-east-1",
+     "S3Key": "b073cebcf4d61fb152a30f5a5e57a94df7f980a549fdf1a79a0b18c5750522d8.zip"
+    },
+    "Handler": "index.certificateRequestHandler",
+    "Role": {
+     "Fn::GetAtt": [
+      "SiteCertCertificateRequestorFunctionServiceRoleA385B09C",
+      "Arn"
+     ]
+    },
+    "Runtime": "nodejs22.x",
+    "Timeout": 900
+   },
+   "DependsOn": [
+    "SiteCertCertificateRequestorFunctionServiceRoleDefaultPolicyF4AE763F",
+    "SiteCertCertificateRequestorFunctionServiceRoleA385B09C"
+   ],
+   "Metadata": {
+    "aws:cdk:path": "WeddingPhotoCerts/SiteCert/CertificateRequestorFunction/Resource",
+    "aws:asset:path": "asset.b073cebcf4d61fb152a30f5a5e57a94df7f980a549fdf1a79a0b18c5750522d8",
+    "aws:asset:is-bundled": false,
+    "aws:asset:property": "Code"
+   }
+  },
+  "SiteCertCertificateRequestorResource0E215BBE": {
+   "Type": "AWS::CloudFormation::CustomResource",
+   "Properties": {
+    "ServiceToken": {
+     "Fn::GetAtt": [
+      "SiteCertCertificateRequestorFunctionAC347388",
+      "Arn"
+     ]
+    },
+    "DomainName": "wedding.fishare.de",
+    "SubjectAlternativeNames": [
+     "*.fishare.de"
+    ],
+    "HostedZoneId": "Z3RXA1N6WFQCGC"
+   },
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "WeddingPhotoCerts/SiteCert/CertificateRequestorResource/Default"
+   }
+  },
+  "ApiCertCertificateRequestorFunctionServiceRoleF7CF1470": {
+   "Type": "AWS::IAM::Role",
+   "Properties": {
+    "AssumeRolePolicyDocument": {
+     "Statement": [
+      {
+       "Action": "sts:AssumeRole",
+       "Effect": "Allow",
+       "Principal": {
+        "Service": "lambda.amazonaws.com"
+       }
+      }
+     ],
+     "Version": "2012-10-17"
+    },
+    "ManagedPolicyArns": [
+     {
+      "Fn::Join": [
+       "",
+       [
+        "arn:",
+        {
+         "Ref": "AWS::Partition"
+        },
+        ":iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+       ]
+      ]
+     }
+    ]
+   },
+   "Metadata": {
+    "aws:cdk:path": "WeddingPhotoCerts/ApiCert/CertificateRequestorFunction/ServiceRole/Resource"
+   }
+  },
+  "ApiCertCertificateRequestorFunctionServiceRoleDefaultPolicyAB4B66F1": {
+   "Type": "AWS::IAM::Policy",
+   "Properties": {
+    "PolicyDocument": {
+     "Statement": [
+      {
+       "Action": [
+        "acm:RequestCertificate",
+        "acm:DescribeCertificate",
+        "acm:DeleteCertificate",
+        "acm:AddTagsToCertificate"
+       ],
+       "Effect": "Allow",
+       "Resource": "*"
+      },
+      {
+       "Action": "route53:GetChange",
+       "Effect": "Allow",
+       "Resource": "*"
+      },
+      {
+       "Action": "route53:changeResourceRecordSets",
+       "Condition": {
+        "ForAllValues:StringEquals": {
+         "route53:ChangeResourceRecordSetsRecordTypes": [
+          "CNAME"
+         ],
+         "route53:ChangeResourceRecordSetsActions": [
+          "UPSERT"
+         ]
+        },
+        "ForAllValues:StringLike": {
+         "route53:ChangeResourceRecordSetsNormalizedRecordNames": [
+          "*.api.fishare.de"
+         ]
+        }
+       },
+       "Effect": "Allow",
+       "Resource": {
+        "Fn::Join": [
+         "",
+         [
+          "arn:",
+          {
+           "Ref": "AWS::Partition"
+          },
+          ":route53:::hostedzone/Z3RXA1N6WFQCGC"
+         ]
+        ]
+       }
+      }
+     ],
+     "Version": "2012-10-17"
+    },
+    "PolicyName": "ApiCertCertificateRequestorFunctionServiceRoleDefaultPolicyAB4B66F1",
+    "Roles": [
+     {
+      "Ref": "ApiCertCertificateRequestorFunctionServiceRoleF7CF1470"
+     }
+    ]
+   },
+   "Metadata": {
+    "aws:cdk:path": "WeddingPhotoCerts/ApiCert/CertificateRequestorFunction/ServiceRole/DefaultPolicy/Resource"
+   }
+  },
+  "ApiCertCertificateRequestorFunctionAB92FD01": {
+   "Type": "AWS::Lambda::Function",
+   "Properties": {
+    "Code": {
+     "S3Bucket": "cdk-hnb659fds-assets-127537619055-us-east-1",
+     "S3Key": "b073cebcf4d61fb152a30f5a5e57a94df7f980a549fdf1a79a0b18c5750522d8.zip"
+    },
+    "Handler": "index.certificateRequestHandler",
+    "Role": {
+     "Fn::GetAtt": [
+      "ApiCertCertificateRequestorFunctionServiceRoleF7CF1470",
+      "Arn"
+     ]
+    },
+    "Runtime": "nodejs22.x",
+    "Timeout": 900
+   },
+   "DependsOn": [
+    "ApiCertCertificateRequestorFunctionServiceRoleDefaultPolicyAB4B66F1",
+    "ApiCertCertificateRequestorFunctionServiceRoleF7CF1470"
+   ],
+   "Metadata": {
+    "aws:cdk:path": "WeddingPhotoCerts/ApiCert/CertificateRequestorFunction/Resource",
+    "aws:asset:path": "asset.b073cebcf4d61fb152a30f5a5e57a94df7f980a549fdf1a79a0b18c5750522d8",
+    "aws:asset:is-bundled": false,
+    "aws:asset:property": "Code"
+   }
+  },
+  "ApiCertCertificateRequestorResource25ECA86B": {
+   "Type": "AWS::CloudFormation::CustomResource",
+   "Properties": {
+    "ServiceToken": {
+     "Fn::GetAtt": [
+      "ApiCertCertificateRequestorFunctionAB92FD01",
+      "Arn"
+     ]
+    },
+    "DomainName": "api.fishare.de",
+    "HostedZoneId": "Z3RXA1N6WFQCGC"
+   },
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "WeddingPhotoCerts/ApiCert/CertificateRequestorResource/Default"
+   }
+  },
+  "CDKMetadata": {
+   "Type": "AWS::CDK::Metadata",
+   "Properties": {
+    "Analytics": "v2:deflate64:H4sIAAAAAAAA/0WOy2rDQAxFvyV7WQlj+gGNS9bBgW6DMqMYxfMAS9NQjP+9OEnb1Tm6Fy5y6N52uNvQXRsfxibKBeeTkR+hZy118gx01/PseTK5iifjRJkGnvAj6ydFCWQcuv8aIqVLIJwPNXuTkqG75l9fQCjh3JfIa/zgsUTx3+v5tAW0PZMqm+L7CtAW99WPbHtSXuARnowGyQN0Va2kv2fX0ZcvkEtgvOn2yzl0DtvNTUWaqWaTxNg/+QOAmkLXAwEAAA=="
+   },
+   "Metadata": {
+    "aws:cdk:path": "WeddingPhotoCerts/CDKMetadata/Default"
+   }
+  },
+  "ExportsWriterapnortheast12334E1B81D43DF3F": {
+   "Type": "Custom::CrossRegionExportWriter",
+   "Properties": {
+    "ServiceToken": {
+     "Fn::GetAtt": [
+      "CustomCrossRegionExportWriterCustomResourceProviderHandlerD8786E8A",
+      "Arn"
+     ]
+    },
+    "WriterProps": {
+     "region": "ap-northeast-1",
+     "exports": {
+      "/cdk/exports/WeddingPhotoStack/WeddingPhotoCertsuseast1FnGetAttSiteCertCertificateRequestorResource0E215BBEArn4DBDAC53": {
+       "Fn::GetAtt": [
+        "SiteCertCertificateRequestorResource0E215BBE",
+        "Arn"
+       ]
+      },
+      "/cdk/exports/WeddingPhotoStack/WeddingPhotoCertsuseast1FnGetAttApiCertCertificateRequestorResource25ECA86BArnF52C8489": {
+       "Fn::GetAtt": [
+        "ApiCertCertificateRequestorResource25ECA86B",
+        "Arn"
+       ]
+      }
+     }
+    }
+   },
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "WeddingPhotoCerts/ExportsWriterapnortheast12334E1B8/Resource/Default"
+   }
+  },
+  "CustomCrossRegionExportWriterCustomResourceProviderRoleC951B1E1": {
+   "Type": "AWS::IAM::Role",
+   "Properties": {
+    "AssumeRolePolicyDocument": {
+     "Version": "2012-10-17",
+     "Statement": [
+      {
+       "Action": "sts:AssumeRole",
+       "Effect": "Allow",
+       "Principal": {
+        "Service": "lambda.amazonaws.com"
+       }
+      }
+     ]
+    },
+    "ManagedPolicyArns": [
+     {
+      "Fn::Sub": "arn:${AWS::Partition}:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+     }
+    ],
+    "Policies": [
+     {
+      "PolicyName": "Inline",
+      "PolicyDocument": {
+       "Version": "2012-10-17",
+       "Statement": [
+        {
+         "Effect": "Allow",
+         "Resource": [
+          {
+           "Fn::Join": [
+            "",
+            [
+             "arn:",
+             {
+              "Ref": "AWS::Partition"
+             },
+             ":ssm:ap-northeast-1:127537619055:parameter/cdk/exports/*"
+            ]
+           ]
+          }
+         ],
+         "Action": [
+          "ssm:DeleteParameters",
+          "ssm:ListTagsForResource",
+          "ssm:GetParameters",
+          "ssm:PutParameter"
+         ]
+        }
+       ]
+      }
+     }
+    ]
+   },
+   "Metadata": {
+    "aws:cdk:path": "WeddingPhotoCerts/Custom::CrossRegionExportWriterCustomResourceProvider/Role"
+   }
+  },
+  "CustomCrossRegionExportWriterCustomResourceProviderHandlerD8786E8A": {
+   "Type": "AWS::Lambda::Function",
+   "Properties": {
+    "Code": {
+     "S3Bucket": "cdk-hnb659fds-assets-127537619055-us-east-1",
+     "S3Key": "d2191f6f199b95d1c044799f514b1ceca87200b3014c43c34839aad03dc69b8c.zip"
+    },
+    "Timeout": 900,
+    "MemorySize": 128,
+    "Handler": "__entrypoint__.handler",
+    "Role": {
+     "Fn::GetAtt": [
+      "CustomCrossRegionExportWriterCustomResourceProviderRoleC951B1E1",
+      "Arn"
+     ]
+    },
+    "Runtime": "nodejs22.x"
+   },
+   "DependsOn": [
+    "CustomCrossRegionExportWriterCustomResourceProviderRoleC951B1E1"
+   ],
+   "Metadata": {
+    "aws:cdk:path": "WeddingPhotoCerts/Custom::CrossRegionExportWriterCustomResourceProvider/Handler",
+    "aws:asset:path": "asset.d2191f6f199b95d1c044799f514b1ceca87200b3014c43c34839aad03dc69b8c",
+    "aws:asset:property": "Code"
+   }
+  }
+ },
+ "Parameters": {
+  "BootstrapVersion": {
+   "Type": "AWS::SSM::Parameter::Value<String>",
+   "Default": "/cdk-bootstrap/hnb659fds/version",
+   "Description": "Version of the CDK Bootstrap resources in this environment, automatically retrieved from SSM Parameter Store. [cdk:skip]"
+  }
+ },
+ "Rules": {
+  "CheckBootstrapVersion": {
+   "Assertions": [
+    {
+     "Assert": {
+      "Fn::Not": [
+       {
+        "Fn::Contains": [
+         [
+          "1",
+          "2",
+          "3",
+          "4",
+          "5"
+         ],
+         {
+          "Ref": "BootstrapVersion"
+         }
+        ]
+       }
+      ]
+     },
+     "AssertDescription": "CDK bootstrap stack version 6 required. Please run 'cdk bootstrap' with a recent version of the CDK CLI."
+    }
+   ]
+  }
+ }
+}

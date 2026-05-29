@@ -2,174 +2,147 @@
 
 ## Infrastructure
 
-- [ ] Create CDK stack `lib/wedding-photo-stack.ts`
-- [ ] Provision DynamoDB tables: `events`, `keypairs`, `photos`, `connections`
-- [ ] Create S3 bucket `wedding-photo-share-{env}`
-- [ ] Configure S3 lifecycle rules (retention per event setting)
-- [ ] Create API Gateway REST API `wedding-photo-api`
-- [ ] Create API Gateway WebSocket API `wedding-photo-websocket`
-- [ ] Add CORS configuration (Amplify domain only)
-- [ ] Configure API Gateway throttling per method
-- [ ] Create Secrets Manager entry for JWT secret
-- [ ] Create CloudWatch alarms: error rate, Lambda duration
-- [ ] Create DLQ SQS queue for Lambda retries
-- [ ] Configure CloudFront distribution for thumbnails
+- [x] Create CDK stack `lib/wedding-photo-stack.ts`
+- [x] Provision DynamoDB tables: `events`, `keypairs`, `photos`, `connections`
+- [x] Create S3 bucket `wedding-photo-share-{env}-{account}`
+- [x] Create API Gateway HTTP API `wedding-photo-api`
+- [x] Create API Gateway WebSocket API `wedding-photo-websocket`
+- [x] Configure CORS (wedding.fishare.de and api.fishare.de)
+- [x] Create Secrets Manager entry for JWT secret
+- [x] Create CloudWatch alarms: error rate, Lambda duration
+- [x] Create DLQ SQS queue for Lambda retries
+- [x] Configure CloudFront distribution with ACM Certificate
+- [x] Route53 A-record alias for wedding.fishare.de
+- [x] Route53 A-record alias for api.fishare.de → API Gateway
+- [x] CloudFront Cache Policy: forward `Authorization` + `Origin` headers (ID: `3d2eea86-7550-424d-9b3a-727674f24100`) — fixes 401 + CORS
+- [x] CloudFront Function `wedding-cors-prod` → `viewer-response` (inject CORS headers, OPTIONS 204) — **fixes CORS preflight 503**
+- [x] EVENT PK format migration: `EVENT#xxx` → `EVENT-xxx` (fixes URL fragment bug)
+- [ ] Set up S3 lifecycle rules (retention per event setting)
 - [ ] Set up AWS budget alert for unexpected spend
 
-## Go Lambda Functions
+## CDK Stack Tests
 
-### admin-handler
+- [x] 18/18 CDK stack tests pass
+- [x] 10/10 admin Lambda unit tests pass (28/28 total)
+- [ ] Add tests for CloudFront distribution (certificate, domain, origin)
+- [ ] Add tests for Route53 records
 
-- [ ] `cmd/admin/main.go` — Lambda entry point
-- [ ] `internal/admin/handlers.go` — HTTP handlers for all endpoints
-- [ ] `internal/admin/auth.go` — JWT generation and validation
-- [ ] `internal/admin/models.go` — Event, Keypair structs
-- [ ] `internal/admin/dynamodb.go` — DynamoDB CRUD operations
-- [ ] `POST /admin/login` handler
-- [ ] `GET /admin/events` handler (paginated)
-- [ ] `POST /admin/events` — create event + generate both keys
-- [ ] `PUT /admin/events/:eventId` — update name/status
-- [ ] `DELETE /admin/events/:eventId` — cascade delete photos + keys
-- [ ] `DELETE /admin/photos/:photoId` handler
-- [ ] Unit tests for all handlers
+## Lambda Functions (TypeScript)
 
-### upload-handler
+### admin
+- [x] `lambda/admin/index.ts` — Lambda handler
+- [x] `POST /admin/login` handler
+- [x] `GET /admin/events` handler
+- [x] `POST /admin/events` — create event + generate both keys, keys stored in EVENTS table
+- [x] `GET /admin/events/:eventId` — returns keys from EVENTS table (no GSI needed)
+- [x] `PUT /admin/events/:eventId` — update name/status
+- [x] `DELETE /admin/events/:eventId` — archive event (keypairs via Scan, no GSI)
+- [x] `DELETE /admin/photos/:photoId` handler
+- [x] `KEYPAIRS_TABLE` env var typo fixed (`AlR` → `AI` in admin Lambda)
+- [x] `jwtVerify` uses real jose library (not hand-rolled decode)
+- [x] Web Crypto polyfill in `test/setup.ts` for Node.js 18 compatibility
+- [x] 10/10 admin Lambda unit tests pass
+- [ ] Unit tests for upload handlers
+- [ ] Unit tests for slideshow handlers
+- [ ] Unit tests for websocket handlers
+- [ ] Unit tests for myguest handlers
 
-- [ ] `cmd/upload/main.go`
-- [ ] `internal/upload/presign.go` — generate presigned S3 PUT URL
-- [ ] `internal/upload/confirm.go` — validate + write DynamoDB metadata
-- [ ] `internal/upload/validate.go` — magic byte validation, size check
-- [ ] `POST /upload/presign` — key validation + presign response
-- [ ] `POST /upload/confirm` — metadata write + WebSocket broadcast trigger
-- [ ] WebSocket broadcast call from upload confirm
-- [ ] Unit tests for validation logic
+### Design Decisions (this session)
+- [x] Plaintext keys stored in EVENTS table (METADATA item) — allows key retrieval after creation
+- [x] keypairs table still used for hash-based key validation at upload/show time
+- [x] No GSI on keypairs table — all lookups use Scan (acceptable for admin ops)
 
-### slideshow-handler
+### upload
+- [x] `lambda/upload/index.ts` — Lambda handler
+- [x] `POST /upload/presign` — presigned S3 PUT URL
+- [x] `POST /upload/confirm` — DynamoDB write + WebSocket broadcast
+- [x] Magic bytes validation for JPEG (FF D8 FF), PNG (89 50 4E 47), WebP (52 49 46 46), HEIC (66 74 79 70 68 65 69 63)
+- [x] File size validation (max 20MB)
+- [x] Nickname sanitization (alphanumeric + spaces, 2-20 chars)
+- [x] DynamoDB conditional write (duplicate prevention)
+- [ ] Multipart upload support (> 5MB)
+- [ ] Unit tests for upload handlers
 
-- [ ] `cmd/slideshow/main.go`
-- [ ] `internal/slideshow/handlers.go`
-- [ ] `GET /slideshow/photos` — query DynamoDB GSI
-- [ ] `GET /slideshow/presign/:photoId` — thumbnail presigned URL
-- [ ] Thumbnail generation logic (call S3 thumbnail generation or serve original)
-- [ ] Unit tests
+### slideshow
+- [x] `lambda/slideshow/index.ts` — Lambda handler
+- [x] `GET /slideshow/photos` — query DynamoDB GSI
+- [x] `GET /slideshow/presign/:photoId` — thumbnail presigned URL
+- [ ] Unit tests for slideshow handlers
 
-### websocket-handler
+### websocket
+- [x] `lambda/websocket/index.ts` — Lambda handler
+- [x] `$connect` route — validate SHOW_KEY + register connection
+- [x] `$disconnect` route — remove connection
+- [x] `broadcast` route — push to all connections for eventId
+- [ ] Unit tests for websocket handlers
 
-- [ ] `cmd/websocket/main.go`
-- [ ] `internal/websocket/connect.go` — validate SHOW_KEY + register connection
-- [ ] `internal/websocket/disconnect.go` — remove connection
-- [ ] `internal/websocket/broadcast.go` — push to all connections for eventId
-- [ ] DynamoDB connections table operations
-- [ ] Connection TTL management
-- [ ] Unit tests
-
-### myguest-handler
-
-- [ ] `cmd/myguest/main.go`
-- [ ] `internal/myguest/handlers.go`
-- [ ] `GET /myguest/photos` — query by eventId + nickname
-- [ ] `DELETE /myguest/photos/:photoId` — ownership verification + delete
+### myguest
+- [x] `lambda/myguest/index.ts` — Lambda handler
+- [x] `GET /myguest/photos` — query by eventId + nickname
+- [x] `DELETE /myguest/photos/:photoId` — ownership verification + delete
 - [ ] Rate limiting (10 req/min per IP)
-- [ ] Unit tests
+- [ ] Unit tests for myguest handlers
 
-## AWS Amplify Frontend (React)
+## Frontend (SvelteKit)
 
 ### Infrastructure
-
-- [ ] Create Amplify app via CDK Amplify backend
-- [ ] Configure Amplify custom rewrites for SPA (redirect all to index.html)
-- [ ] Add Amplify environment variables: API endpoint, region
-- [ ] Set up Amplify branch auto-deploy
+- [x] SvelteKit 2 + Svelte 5 + Tailwind CSS v3
+- [x] adapter-static with SPA routing
+- [x] Vitest unit tests
+- [x] Playwright E2E config
 
 ### Pages
+- [x] `src/routes/+page.svelte` — Home (keyHash/eventId input)
+- [x] `src/routes/admin/login/+page.svelte` — Admin login
+- [x] `src/routes/admin/+page.svelte` — Admin dashboard (event list + create + delete with confirmation)
+- [x] Batch delete: checkbox multi-select + delete all selected at once
+- [x] `src/routes/admin/event/[eventId]/+page.svelte` — Event management (full URLs + QRCode + copy buttons, keys from API)
+- [x] Keys always visible on event detail page (no "請至建立記錄取得金鑰" fallback)
+- [x] `src/routes/event/[eventId]/+page.svelte` — Slideshow page
+- [x] `src/routes/event/[eventId]/upload/+page.svelte` — Upload page
+- [x] `src/routes/myguest/[eventId]/+page.svelte` — MyGuest page
+- [x] QR code display via Google Charts QR API
+- [x] Copy-to-clipboard buttons for upload/show URLs
+- [x] Key storage: keys from API (no localStorage needed after server-side key storage)
 
-#### Admin Page `/admin`
+### Shared
+- [x] `src/lib/api/client.ts` — API client with auth
+- [x] `src/lib/api/types.ts` — TypeScript types
+- [x] `tailwind.config.js` — Wedding theme colors
+- [x] API client retry logic (exponential backoff, max 3 retries, 5xx only)
 
-- [ ] `src/pages/Admin/LoginPage.tsx` — email + password form
-- [ ] `src/pages/Admin/AdminDashboard.tsx` — event list
-- [ ] `src/pages/Admin/EventEditor.tsx` — create/edit event modal
-- [ ] `src/pages/Admin/KeypairDisplay.tsx` — show UPLOAD_KEY and SHOW_KEY as QR codes
-- [ ] `src/pages/Admin/PhotoManager.tsx` — photo list with delete
-- [ ] `src/components/Admin/QRCode.tsx` — QR code generator component
-- [ ] JWT storage in localStorage + auto-refresh
-- [ ] Protected route wrapper (redirect to login if no JWT)
-- [ ] Responsive layout for tablet use
+### Tests
+- [x] 11/11 Vitest unit tests pass
+- [ ] Playwright E2E: upload flow (valid key → upload photo → appears in slideshow)
+- [ ] Playwright E2E: admin flow (create event → get keys → delete event)
+- [ ] Playwright E2E: myguest flow (upload with nickname → search → delete)
 
-#### Upload Page `/upload`
+## Deployment
 
-- [ ] `src/pages/Upload/UploadPage.tsx` — main upload page
-- [ ] `src/pages/Upload/ManageLink.tsx` — post-upload management link display
-- [ ] `src/components/Upload/PhotoUploader.tsx` — multi-file drag-drop uploader
-- [ ] `src/components/Upload/NicknameInput.tsx` — validated nickname input
-- [ ] `src/hooks/useUpload.ts` — presign → PUT → confirm flow
-- [ ] Progress indicator per file
-- [ ] Error handling with retry
-- [ ] Mobile-first responsive design
+- [x] `lambda-pkgs/` — pre-built Lambda zip files
+- [ ] `cdk deploy --profile yyl` — initial deployment
+- [ ] Configure fishare.de hosted zone ID in CDK (via `hostedZoneId` prop)
+- [ ] Verify CloudFront deployment succeeds
+- [ ] Verify API Gateway routes are working
+- [ ] Verify DNS propagation for wedding.fishare.de
 
-#### Slideshow Page `/slideshow`
+## CI/CD
 
-- [ ] `src/pages/Slideshow/SlideshowPage.tsx` — full-screen slideshow
-- [ ] `src/components/Slideshow/PhotoSlide.tsx` — single photo with fade animation
-- [ ] `src/components/Slideshow/ControlPanel.tsx` — hidden staff controls
-- [ ] `src/hooks/useWebSocket.ts` — WebSocket connection + reconnect logic
-- [ ] `src/hooks/useSlideshowControls.ts` — keyboard event handlers
-- [ ] `src/context/SlideshowContext.tsx` — photo queue + playback state
-- [ ] CSS fade transition animation (opacity 0→1, 0.5s)
-- [ ] Auto-advance timer (5s per slide)
-- [ ] localStorage fallback for offline queue
-- [ ] Debug overlay component
-
-#### MyGuest Page `/myguest`
-
-- [ ] `src/pages/MyGuest/FindMyPhotos.tsx` — nickname search form
-- [ ] `src/pages/MyGuest/MyPhotos.tsx` — photo grid + management
-- [ ] `src/components/MyGuest/PhotoCard.tsx` — view + delete per photo
-- [ ] `src/hooks/useMyGuest.ts` — API calls for photo list + delete
-- [ ] Responsive photo grid (1-3 columns based on viewport)
-
-### Shared Components
-
-- [ ] `src/components/Layout/PageLayout.tsx` — common header/footer
-- [ ] `src/components/Common/Button.tsx`
-- [ ] `src/components/Common/Input.tsx`
-- [ ] `src/components/Common/Modal.tsx`
-- [ ] `src/context/AuthContext.tsx` — JWT + user state
-- [ ] `src/lib/api.ts` — Axios instance with auth header + interceptors
-- [ ] `src/lib/constants.ts` — key query param names, timing constants
-- [ ] `src/hooks/useKeyValidation.ts` — validate key on page load (upload/slideshow)
-
-## GitHub Actions CI/CD
-
-- [ ] `.github/workflows/cdk-deploy.yml` — deploy CDK on merge to main
-- [ ] `.github/workflows/frontend-deploy.yml` — Amplify build spec
-- [ ] `amplify.yml` — Amplify build configuration
-- [ ] AWS credentials: `AWS_PROFILE=yyl` for CDK deploy
-- [ ] Branch protection: require PR + review for main branch
+- [x] `.github/workflows/ci.yml` — CI: TypeScript + CDK tests + Lambda build + CDK synth + Frontend build
+- [x] `.github/workflows/cd.yml` — CD: CDK diff + CDK deploy (BucketDeployment handles frontend)
 
 ## Security Hardening
 
-- [ ] Verify magic bytes for JPEG (FF D8 FF), PNG (89 50 4E 47), WebP (52 49 46 46)
-- [ ] Ensure no plaintext keys in Lambda environment variables (use Secrets Manager)
-- [ ] Verify S3 bucket policy: no public access, presigned URLs only
-- [ ] Verify API Gateway CORS: whitelist only Amplify domain
+- [ ] Verify S3 bucket policy: no public access
+- [ ] Verify API Gateway CORS whitelist
 - [ ] Add AWS WAF on API Gateway (rate limiting, IP allowlist option)
-- [ ] Penetration test checklist: enumerate /admin endpoints without auth → expect 401
+- [ ] Penetration test: enumerate /admin endpoints without auth → expect 401
 - [ ] Penetration test: upload non-image file with forged Content-Type → expect 403
-
-## Testing
-
-- [ ] Lambda unit tests (all handlers) with mocks
-- [ ] Frontend component tests (React Testing Library)
-- [ ] Upload flow E2E test (playwright): valid key → upload photo → appears in slideshow
-- [ ] Slideshow WebSocket E2E: upload triggers new photo in slideshow within 5s
-- [ ] MyGuest E2E: upload with nickname → search nickname → delete photo
-- [ ] Admin E2E: create event → get keys → delete event → verify cascade delete
 
 ## Documentation
 
 - [ ] `README.md` — setup instructions, AWS profile usage
-- [ ] `docs/ARCHITECTURE.md` — system diagram and component descriptions
-- [ ] `docs/DEPLOYMENT.md` — deployment steps, environment setup
+- [ ] `docs/ARCHITECTURE.md` — system diagram
+- [ ] `docs/DEPLOYMENT.md` — deployment steps
 - [ ] `docs/QR-SETUP.md` — how to print QR codes for venue
-- [ ] Inline code comments for all Lambda handlers
-- [ ] API endpoint documentation (OpenAPI spec in `docs/api.yaml`)
+- [ ] API endpoint documentation

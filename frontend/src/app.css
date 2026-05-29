@@ -1,0 +1,20 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --primary: #d4a373;
+  --primary-dark: #bc8a5f;
+  --bg: #faf7f2;
+  --text: #3d2b1f;
+  --muted: #8b7355;
+  --border: #e8d5c4;
+  --white: #ffffff;
+}
+
+body {
+  font-family: "Noto Sans TC", "PingFang TC", system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+}

@@ -1,0 +1,51 @@
+{
+  "version": "53.0.0",
+  "files": {
+    "b073cebcf4d61fb152a30f5a5e57a94df7f980a549fdf1a79a0b18c5750522d8": {
+      "displayName": "SiteCert/CertificateRequestorFunction/Code",
+      "source": {
+        "path": "asset.b073cebcf4d61fb152a30f5a5e57a94df7f980a549fdf1a79a0b18c5750522d8",
+        "packaging": "zip"
+      },
+      "destinations": {
+        "127537619055-us-east-1-5b294b2e": {
+          "bucketName": "cdk-hnb659fds-assets-127537619055-us-east-1",
+          "objectKey": "b073cebcf4d61fb152a30f5a5e57a94df7f980a549fdf1a79a0b18c5750522d8.zip",
+          "region": "us-east-1",
+          "assumeRoleArn": "arn:${AWS::Partition}:iam::127537619055:role/cdk-hnb659fds-file-publishing-role-127537619055-us-east-1"
+        }
+      }
+    },
+    "d2191f6f199b95d1c044799f514b1ceca87200b3014c43c34839aad03dc69b8c": {
+      "displayName": "WeddingPhotoCerts/Custom::CrossRegionExportWriterCustomResourceProvider Code",
+      "source": {
+        "path": "asset.d2191f6f199b95d1c044799f514b1ceca87200b3014c43c34839aad03dc69b8c",
+        "packaging": "zip"
+      },
+      "destinations": {
+        "127537619055-us-east-1-d21b6a5b": {
+          "bucketName": "cdk-hnb659fds-assets-127537619055-us-east-1",
+          "objectKey": "d2191f6f199b95d1c044799f514b1ceca87200b3014c43c34839aad03dc69b8c.zip",
+          "region": "us-east-1",
+          "assumeRoleArn": "arn:${AWS::Partition}:iam::127537619055:role/cdk-hnb659fds-file-publishing-role-127537619055-us-east-1"
+        }
+      }
+    },
+    "f7b975709407d1bfce767de5166f30989adcfb72f75d78df13a7805ab0b6f44a": {
+      "displayName": "WeddingPhotoCerts Template",
+      "source": {
+        "path": "WeddingPhotoCerts.template.json",
+        "packaging": "file"
+      },
+      "destinations": {
+        "127537619055-us-east-1-16a87fee": {
+          "bucketName": "cdk-hnb659fds-assets-127537619055-us-east-1",
+          "objectKey": "f7b975709407d1bfce767de5166f30989adcfb72f75d78df13a7805ab0b6f44a.json",
+          "region": "us-east-1",
+          "assumeRoleArn": "arn:${AWS::Partition}:iam::127537619055:role/cdk-hnb659fds-file-publishing-role-127537619055-us-east-1"
+        }
+      }
+    }
+  },
+  "dockerImages": {}
+}

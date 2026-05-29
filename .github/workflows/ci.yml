@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    name: Test & Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: TypeScript check
+        run: npx tsc --noEmit
+
+      - name: CDK tests
+        run: npx jest --config jest.config.js --forceExit
+
+      - name: Build Lambda zips
+        run: |
+          for fn in admin upload slideshow myguest websocket; do
+            npx esbuild lambda/$fn/index.ts \
+              --bundle --platform=node --target=node20 \
+              --external:@aws-sdk/* --external:jose \
+              --outfile=lambda-pkgs/$fn/index.js --minify
+          done
+
+      - name: CDK synth
+        run: npx cdk synth
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          CDK_DEFAULT_ACCOUNT: ${{ vars.AWS_ACCOUNT_ID }}
+          CDK_DEFAULT_REGION: ap-northeast-1
+
+      - name: Frontend build
+        run: |
+          npm install
+          npx vite build
+        working-directory: frontend

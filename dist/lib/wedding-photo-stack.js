@@ -1,0 +1,454 @@
+"use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.WeddingPhotoStack = void 0;
+const cdk = __importStar(require("aws-cdk-lib"));
+const apigwv2 = __importStar(require("aws-cdk-lib/aws-apigatewayv2"));
+const integrations = __importStar(require("aws-cdk-lib/aws-apigatewayv2-integrations"));
+const dynamodb = __importStar(require("aws-cdk-lib/aws-dynamodb"));
+const lambda = __importStar(require("aws-cdk-lib/aws-lambda"));
+const s3 = __importStar(require("aws-cdk-lib/aws-s3"));
+const secretsmanager = __importStar(require("aws-cdk-lib/aws-secretsmanager"));
+const sqs = __importStar(require("aws-cdk-lib/aws-sqs"));
+const cloudwatch = __importStar(require("aws-cdk-lib/aws-cloudwatch"));
+const route53 = __importStar(require("aws-cdk-lib/aws-route53"));
+const targets = __importStar(require("aws-cdk-lib/aws-route53-targets"));
+const cloudfront = __importStar(require("aws-cdk-lib/aws-cloudfront"));
+const origins = __importStar(require("aws-cdk-lib/aws-cloudfront-origins"));
+const certificatemanager = __importStar(require("aws-cdk-lib/aws-certificatemanager"));
+const aws_s3_deployment_1 = require("aws-cdk-lib/aws-s3-deployment");
+class WeddingPhotoStack extends cdk.Stack {
+    constructor(scope, id, props = {}) {
+        super(scope, id, props);
+        const STAGE = this.node.tryGetContext("stage") ?? "prod";
+        // ---------------------------------------------------------------------------
+        // 1. DLQ
+        // ---------------------------------------------------------------------------
+        this.dlq = new sqs.Queue(this, "DeadLetterQueue", {
+            queueName: `wedding-photo-dlq-${STAGE}`,
+            retentionPeriod: cdk.Duration.days(14),
+            enforceSSL: true,
+        });
+        // ---------------------------------------------------------------------------
+        // 2. S3 Bucket
+        // ---------------------------------------------------------------------------
+        this.photoBucket = new s3.Bucket(this, "PhotoBucket", {
+            bucketName: `wedding-photo-share-${STAGE}-${this.account}`,
+            blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
+            enforceSSL: true,
+            cors: [
+                {
+                    allowedOrigins: ["*"],
+                    allowedMethods: [s3.HttpMethods.GET, s3.HttpMethods.PUT],
+                    allowedHeaders: ["*"],
+                    maxAge: 3600,
+                },
+            ],
+            lifecycleRules: [
+                {
+                    id: "abort-incomplete-uploads",
+                    abortIncompleteMultipartUploadAfter: cdk.Duration.days(7),
+                },
+            ],
+        });
+        // ---------------------------------------------------------------------------
+        // 3. DynamoDB Tables
+        // ---------------------------------------------------------------------------
+        this.eventsTable = new dynamodb.Table(this, "EventsTable", {
+            tableName: `wedding-photo-events-${STAGE}`,
+            partitionKey: { name: "PK", type: dynamodb.AttributeType.STRING },
+            sortKey: { name: "SK", type: dynamodb.AttributeType.STRING },
+            billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+            removalPolicy: cdk.RemovalPolicy.RETAIN,
+        });
+        this.eventsTable.addGlobalSecondaryIndex({
+            indexName: "status-createdAt-index",
+            partitionKey: { name: "status", type: dynamodb.AttributeType.STRING },
+            sortKey: { name: "createdAt", type: dynamodb.AttributeType.STRING },
+            projectionType: dynamodb.ProjectionType.ALL,
+        });
+        this.keypairsTable = new dynamodb.Table(this, "KeypairsTable", {
+            tableName: `wedding-photo-keypairs-${STAGE}`,
+            partitionKey: { name: "PK", type: dynamodb.AttributeType.STRING },
+            sortKey: { name: "SK", type: dynamodb.AttributeType.STRING },
+            billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+            removalPolicy: cdk.RemovalPolicy.RETAIN,
+        });
+        this.keypairsTable.addGlobalSecondaryIndex({
+            indexName: "keyHash-index",
+            partitionKey: { name: "keyHash", type: dynamodb.AttributeType.STRING },
+            projectionType: dynamodb.ProjectionType.ALL,
+        });
+        this.photosTable = new dynamodb.Table(this, "PhotosTable", {
+            tableName: `wedding-photo-photos-${STAGE}`,
+            partitionKey: { name: "PK", type: dynamodb.AttributeType.STRING },
+            sortKey: { name: "SK", type: dynamodb.AttributeType.STRING },
+            billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+            removalPolicy: cdk.RemovalPolicy.RETAIN,
+            timeToLiveAttribute: "expireAt",
+        });
+        this.photosTable.addGlobalSecondaryIndex({
+            indexName: "eventId-nickname-index",
+            partitionKey: { name: "eventId", type: dynamodb.AttributeType.STRING },
+            sortKey: { name: "nickname", type: dynamodb.AttributeType.STRING },
+            projectionType: dynamodb.ProjectionType.ALL,
+        });
+        this.photosTable.addGlobalSecondaryIndex({
+            indexName: "eventId-status-index",
+            partitionKey: { name: "eventId", type: dynamodb.AttributeType.STRING },
+            sortKey: { name: "status", type: dynamodb.AttributeType.STRING },
+            projectionType: dynamodb.ProjectionType.ALL,
+        });
+        this.connectionsTable = new dynamodb.Table(this, "ConnectionsTable", {
+            tableName: `wedding-photo-connections-${STAGE}`,
+            partitionKey: { name: "PK", type: dynamodb.AttributeType.STRING },
+            sortKey: { name: "SK", type: dynamodb.AttributeType.STRING },
+            billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+            removalPolicy: cdk.RemovalPolicy.RETAIN,
+            timeToLiveAttribute: "expireAt",
+        });
+        // ---------------------------------------------------------------------------
+        // 4. Secrets Manager
+        // ---------------------------------------------------------------------------
+        const jwtSecret = new secretsmanager.Secret(this, "JwtSecret", {
+            secretName: `wedding-photo-jwt-secret-${STAGE}`,
+            generateSecretString: {
+                passwordLength: 64,
+                excludePunctuation: false,
+            },
+        });
+        // ---------------------------------------------------------------------------
+        // 5. REST API Gateway (created before Lambdas so wsApiUrl is available)
+        // ---------------------------------------------------------------------------
+        this.restApi = new apigwv2.HttpApi(this, "RestApi", {
+            apiName: `wedding-photo-api-${STAGE}`,
+            corsPreflight: {
+                allowOrigins: ["*"],
+                allowMethods: [
+                    apigwv2.CorsHttpMethod.GET,
+                    apigwv2.CorsHttpMethod.POST,
+                    apigwv2.CorsHttpMethod.DELETE,
+                    apigwv2.CorsHttpMethod.OPTIONS,
+                ],
+                allowHeaders: ["*"],
+                maxAge: cdk.Duration.days(1),
+            },
+        });
+        const wsApiUrl = `https://${this.restApi.httpApiId}.execute-api.${this.region}.amazonaws.com`;
+        // -------------------------------------------------------------------------
+        // 6. Lambda Functions (using prebuilt zip to avoid Docker/esbuild bundling)
+        // -------------------------------------------------------------------------
+        const baseLambdaProps = {
+            runtime: lambda.Runtime.NODEJS_20_X,
+            timeout: cdk.Duration.seconds(30),
+            memorySize: 256,
+            deadLetterQueue: this.dlq,
+            deadLetterQueueEnabled: true,
+        };
+        this.adminLambda = new lambda.Function(this, "AdminLambda", {
+            ...baseLambdaProps,
+            code: lambda.Code.fromAsset(`lambda-pkgs/admin`),
+            handler: "index.handler",
+            environment: {
+                EVENTS_TABLE: this.eventsTable.tableName,
+                KEYPAlRS_TABLE: this.keypairsTable.tableName,
+                PHOTOS_TABLE: this.photosTable.tableName,
+                JWT_SECRET_NAME: jwtSecret.secretName,
+                STAGE,
+            },
+        });
+        this.uploadLambda = new lambda.Function(this, "UploadLambda", {
+            ...baseLambdaProps,
+            code: lambda.Code.fromAsset(`lambda-pkgs/upload`),
+            handler: "index.handler",
+            environment: {
+                PHOTOS_TABLE: this.photosTable.tableName,
+                CONNECTIONS_TABLE: this.connectionsTable.tableName,
+                PHOTO_BUCKET: this.photoBucket.bucketName,
+                WEBSOCKET_API_URL: wsApiUrl,
+                STAGE,
+            },
+        });
+        this.slideshowLambda = new lambda.Function(this, "SlideshowLambda", {
+            ...baseLambdaProps,
+            code: lambda.Code.fromAsset(`lambda-pkgs/slideshow`),
+            handler: "index.handler",
+            timeout: cdk.Duration.seconds(10),
+            environment: {
+                PHOTOS_TABLE: this.photosTable.tableName,
+                PHOTO_BUCKET: this.photoBucket.bucketName,
+                STAGE,
+            },
+        });
+        this.myguestLambda = new lambda.Function(this, "MyGuestLambda", {
+            ...baseLambdaProps,
+            code: lambda.Code.fromAsset(`lambda-pkgs/myguest`),
+            handler: "index.handler",
+            timeout: cdk.Duration.seconds(10),
+            environment: {
+                PHOTOS_TABLE: this.photosTable.tableName,
+                PHOTO_BUCKET: this.photoBucket.bucketName,
+                STAGE,
+            },
+        });
+        this.websocketLambda = new lambda.Function(this, "WebSocketLambda", {
+            ...baseLambdaProps,
+            code: lambda.Code.fromAsset(`lambda-pkgs/websocket`),
+            handler: "index.handler",
+            environment: {
+                CONNECTIONS_TABLE: this.connectionsTable.tableName,
+                STAGE,
+            },
+        });
+        // IAM grants
+        for (const tbl of [this.eventsTable, this.keypairsTable, this.photosTable, this.connectionsTable]) {
+            tbl.grantReadWriteData(this.adminLambda);
+            tbl.grantReadWriteData(this.uploadLambda);
+            tbl.grantReadData(this.slideshowLambda);
+            tbl.grantReadWriteData(this.myguestLambda);
+            tbl.grantReadWriteData(this.websocketLambda);
+        }
+        this.photoBucket.grantReadWrite(this.uploadLambda);
+        this.photoBucket.grantRead(this.slideshowLambda);
+        this.photoBucket.grantRead(this.myguestLambda);
+        jwtSecret.grantRead(this.adminLambda);
+        this.dlq.grantSendMessages(this.uploadLambda);
+        // ---------------------------------------------------------------------------
+        // 7. REST API Routes
+        // ---------------------------------------------------------------------------
+        const adminInt = new integrations.HttpLambdaIntegration("AdminIntegration", this.adminLambda);
+        const uploadInt = new integrations.HttpLambdaIntegration("UploadIntegration", this.uploadLambda);
+        const slideshowInt = new integrations.HttpLambdaIntegration("SlideshowIntegration", this.slideshowLambda);
+        const myguestInt = new integrations.HttpLambdaIntegration("MyGuestIntegration", this.myguestLambda);
+        this.restApi.addRoutes({
+            path: "/admin/login",
+            methods: [apigwv2.HttpMethod.ANY],
+            integration: adminInt,
+        });
+        this.restApi.addRoutes({
+            path: "/admin/events",
+            methods: [apigwv2.HttpMethod.ANY],
+            integration: adminInt,
+        });
+        this.restApi.addRoutes({
+            path: "/admin/events/{eventId}",
+            methods: [apigwv2.HttpMethod.ANY],
+            integration: adminInt,
+        });
+        this.restApi.addRoutes({
+            path: "/admin/photos/{photoId}",
+            methods: [apigwv2.HttpMethod.ANY],
+            integration: adminInt,
+        });
+        this.restApi.addRoutes({
+            path: "/upload/presign",
+            methods: [apigwv2.HttpMethod.ANY],
+            integration: uploadInt,
+        });
+        this.restApi.addRoutes({
+            path: "/upload/confirm",
+            methods: [apigwv2.HttpMethod.ANY],
+            integration: uploadInt,
+        });
+        this.restApi.addRoutes({
+            path: "/slideshow/photos",
+            methods: [apigwv2.HttpMethod.GET],
+            integration: slideshowInt,
+        });
+        this.restApi.addRoutes({
+            path: "/slideshow/presign/{photoId}",
+            methods: [apigwv2.HttpMethod.GET],
+            integration: slideshowInt,
+        });
+        this.restApi.addRoutes({
+            path: "/myguest/photos",
+            methods: [apigwv2.HttpMethod.GET],
+            integration: myguestInt,
+        });
+        this.restApi.addRoutes({
+            path: "/myguest/photos/{photoId}",
+            methods: [apigwv2.HttpMethod.DELETE],
+            integration: myguestInt,
+        });
+        // ---------------------------------------------------------------------------
+        // 8. WebSocket API (L1 for full control)
+        // ---------------------------------------------------------------------------
+        this.websocketApi = new apigwv2.CfnApi(this, "WebSocketApi", {
+            name: `wedding-photo-websocket-${STAGE}`,
+            protocolType: "WEBSOCKET",
+            routeSelectionExpression: "$request.body.type",
+        });
+        // Use L1 CfnIntegration to get attrIntegrationId for routes
+        const wsLambdaIntegration = new apigwv2.CfnIntegration(this, "WsLambdaIntegration", {
+            apiId: this.websocketApi.ref,
+            integrationType: "AWS_PROXY",
+            integrationUri: this.websocketLambda.functionArn,
+        });
+        new apigwv2.CfnRoute(this, "WsConnectRoute", {
+            apiId: this.websocketApi.ref,
+            routeKey: "$connect",
+            authorizationType: "NONE",
+        });
+        new apigwv2.CfnRoute(this, "WsDisconnectRoute", {
+            apiId: this.websocketApi.ref,
+            routeKey: "$disconnect",
+            authorizationType: "NONE",
+        });
+        new apigwv2.CfnRoute(this, "WsBroadcastRoute", {
+            apiId: this.websocketApi.ref,
+            routeKey: "broadcast",
+            target: `integrations/${wsLambdaIntegration.attrIntegrationId}`,
+        });
+        new apigwv2.CfnStage(this, "WsStage", {
+            apiId: this.websocketApi.ref,
+            stageName: STAGE,
+            autoDeploy: true,
+        });
+        // ---------------------------------------------------------------------------
+        // 9. CloudWatch Alarms
+        // ---------------------------------------------------------------------------
+        const lambdas = [
+            { name: "AdminLambda", fn: this.adminLambda },
+            { name: "UploadLambda", fn: this.uploadLambda },
+            { name: "SlideshowLambda", fn: this.slideshowLambda },
+            { name: "MyGuestLambda", fn: this.myguestLambda },
+            { name: "WebSocketLambda", fn: this.websocketLambda },
+        ];
+        for (const { name, fn } of lambdas) {
+            new cloudwatch.Alarm(this, `${name}ErrorRate`, {
+                alarmName: `${name}-error-rate-${STAGE}`,
+                metric: fn.metricErrors({ period: cdk.Duration.minutes(5) }),
+                threshold: 1,
+                evaluationPeriods: 1,
+                comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
+            });
+            new cloudwatch.Alarm(this, `${name}Duration`, {
+                alarmName: `${name}-duration-${STAGE}`,
+                metric: fn.metricDuration({ period: cdk.Duration.minutes(5) }),
+                threshold: 20000,
+                evaluationPeriods: 1,
+                comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
+            });
+        }
+        // -------------------------------------------------------------------------
+        // 10. Frontend Hosting — S3 + CloudFront + Route53
+        // -------------------------------------------------------------------------
+        // hostedZoneId passed as prop to avoid AWS lookup during synth/test
+        const hostedZone = props?.hostedZoneId
+            ? route53.HostedZone.fromHostedZoneAttributes(this, "HostedZone", {
+                hostedZoneId: props.hostedZoneId,
+                zoneName: "fishare.de",
+            })
+            : new route53.PublicHostedZone(this, "HostedZone", {
+                zoneName: "fishare.de",
+            });
+        const frontendBucket = new s3.Bucket(this, "FrontendBucket", {
+            bucketName: `wedding-photo-frontend-${STAGE}-${this.account}`,
+            publicReadAccess: false,
+            blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
+            enforceSSL: true,
+            removalPolicy: cdk.RemovalPolicy.RETAIN,
+        });
+        // Import existing wildcard cert (already validated, covers *.fishare.de and wedding.fishare.de)
+        const siteCert = certificatemanager.Certificate.fromCertificateArn(this, "SiteCert", "arn:aws:acm:us-east-1:127537619055:certificate/94ea226c-488d-491d-8a23-0e80d0e2ef73");
+        const distribution = new cloudfront.Distribution(this, "CloudFrontDist", {
+            defaultRootObject: "index.html",
+            domainNames: ["wedding.fishare.de"],
+            certificate: siteCert,
+            defaultBehavior: {
+                origin: new origins.S3Origin(frontendBucket),
+                compress: true,
+                viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+            },
+            // SPA routing: all 403/404 fall back to index.html for client-side router
+            errorResponses: [
+                { httpStatus: 403, responsePagePath: "/index.html", responseHttpStatus: 200 },
+                { httpStatus: 404, responsePagePath: "/index.html", responseHttpStatus: 200 },
+            ],
+        });
+        new route53.ARecord(this, "SiteAlias", {
+            zone: hostedZone,
+            recordName: "wedding",
+            target: route53.RecordTarget.fromAlias(new targets.CloudFrontTarget(distribution)),
+        });
+        new aws_s3_deployment_1.BucketDeployment(this, "DeployFrontend", {
+            sources: [aws_s3_deployment_1.Source.asset("./frontend/build")],
+            destinationBucket: frontendBucket,
+            distribution,
+            distributionPaths: ["/*"],
+        });
+        // API subdomain CloudFront → API Gateway
+        // Use same wildcard cert for API subdomain (already validated)
+        const apiCert = certificatemanager.Certificate.fromCertificateArn(this, "ApiCert", "arn:aws:acm:us-east-1:127537619055:certificate/94ea226c-488d-491d-8a23-0e80d0e2ef73");
+        const apiDist = new cloudfront.Distribution(this, "ApiCloudFront", {
+            domainNames: ["api.fishare.de"],
+            certificate: apiCert,
+            defaultBehavior: {
+                origin: new origins.HttpOrigin(`${this.restApi.httpApiId}.execute-api.${this.region}.amazonaws.com`),
+                viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+            },
+        });
+        new route53.ARecord(this, "ApiAlias", {
+            zone: hostedZone,
+            recordName: "api",
+            target: route53.RecordTarget.fromAlias(new targets.CloudFrontTarget(apiDist)),
+        });
+        // ---------------------------------------------------------------------------
+        // 11. Outputs
+        // ---------------------------------------------------------------------------
+        new cdk.CfnOutput(this, "PhotoBucketName", {
+            value: this.photoBucket.bucketName,
+            exportName: `wedding-photo-bucket-${STAGE}`,
+        });
+        new cdk.CfnOutput(this, "RestApiUrl", {
+            value: this.restApi.url ?? "unknown",
+            exportName: `wedding-photo-api-url-${STAGE}`,
+        });
+        new cdk.CfnOutput(this, "WebSocketApiUrl", {
+            value: `wss://${this.websocketApi.ref}.execute-api.${this.region}.amazonaws.com/${STAGE}`,
+            exportName: `wedding-photo-websocket-url-${STAGE}`,
+        });
+        new cdk.CfnOutput(this, "EventsTableName", {
+            value: this.eventsTable.tableName,
+            exportName: `wedding-photo-events-table-${STAGE}`,
+        });
+        new cdk.CfnOutput(this, "PhotosTableName", {
+            value: this.photosTable.tableName,
+            exportName: `wedding-photo-photos-table-${STAGE}`,
+        });
+    }
+}
+exports.WeddingPhotoStack = WeddingPhotoStack;
+//# sourceMappingURL=wedding-photo-stack.js.map

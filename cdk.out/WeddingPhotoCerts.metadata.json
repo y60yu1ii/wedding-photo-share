@@ -1,0 +1,104 @@
+{
+  "/WeddingPhotoCerts/Custom::CrossRegionExportWriterCustomResourceProvider": [
+    {
+      "type": "aws:cdk:is-custom-resource-handler-customResourceProvider",
+      "data": true
+    }
+  ],
+  "/WeddingPhotoCerts/BootstrapVersion": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "BootstrapVersion"
+    }
+  ],
+  "/WeddingPhotoCerts/CheckBootstrapVersion": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "CheckBootstrapVersion"
+    }
+  ],
+  "/WeddingPhotoCerts/SiteCert/CertificateRequestorFunction": [
+    {
+      "type": "aws:cdk:is-custom-resource-handler-runtime-family",
+      "data": 0
+    }
+  ],
+  "/WeddingPhotoCerts/ApiCert/CertificateRequestorFunction": [
+    {
+      "type": "aws:cdk:is-custom-resource-handler-runtime-family",
+      "data": 0
+    }
+  ],
+  "/WeddingPhotoCerts/CDKMetadata/Default": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "CDKMetadata"
+    }
+  ],
+  "/WeddingPhotoCerts/Custom::CrossRegionExportWriterCustomResourceProvider/Role": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "CustomCrossRegionExportWriterCustomResourceProviderRoleC951B1E1"
+    }
+  ],
+  "/WeddingPhotoCerts/Custom::CrossRegionExportWriterCustomResourceProvider/Handler": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "CustomCrossRegionExportWriterCustomResourceProviderHandlerD8786E8A"
+    }
+  ],
+  "/WeddingPhotoCerts/SiteCert/CertificateRequestorFunction/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "SiteCertCertificateRequestorFunctionAC347388"
+    }
+  ],
+  "/WeddingPhotoCerts/SiteCert/CertificateRequestorResource/Default": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "SiteCertCertificateRequestorResource0E215BBE"
+    }
+  ],
+  "/WeddingPhotoCerts/ApiCert/CertificateRequestorFunction/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "ApiCertCertificateRequestorFunctionAB92FD01"
+    }
+  ],
+  "/WeddingPhotoCerts/ApiCert/CertificateRequestorResource/Default": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "ApiCertCertificateRequestorResource25ECA86B"
+    }
+  ],
+  "/WeddingPhotoCerts/ExportsWriterapnortheast12334E1B8/Resource/Default": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "ExportsWriterapnortheast12334E1B81D43DF3F"
+    }
+  ],
+  "/WeddingPhotoCerts/SiteCert/CertificateRequestorFunction/ServiceRole/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "SiteCertCertificateRequestorFunctionServiceRoleA385B09C"
+    }
+  ],
+  "/WeddingPhotoCerts/ApiCert/CertificateRequestorFunction/ServiceRole/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "ApiCertCertificateRequestorFunctionServiceRoleF7CF1470"
+    }
+  ],
+  "/WeddingPhotoCerts/SiteCert/CertificateRequestorFunction/ServiceRole/DefaultPolicy/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "SiteCertCertificateRequestorFunctionServiceRoleDefaultPolicyF4AE763F"
+    }
+  ],
+  "/WeddingPhotoCerts/ApiCert/CertificateRequestorFunction/ServiceRole/DefaultPolicy/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "ApiCertCertificateRequestorFunctionServiceRoleDefaultPolicyAB4B66F1"
+    }
+  ]
+}

@@ -1,0 +1,6 @@
+{
+  "app": "npx ts-node --project tsconfig.json bin/wedding-photo-app.ts",
+  "context": {
+    "stage": "prod"
+  }
+}

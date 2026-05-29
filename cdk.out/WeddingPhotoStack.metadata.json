@@ -1,0 +1,656 @@
+{
+  "/WeddingPhotoStack/EventsTable": [
+    {
+      "type": "aws:cdk:hasPhysicalName",
+      "data": {
+        "Ref": "EventsTableD24865E5"
+      }
+    }
+  ],
+  "/WeddingPhotoStack/KeypairsTable": [
+    {
+      "type": "aws:cdk:hasPhysicalName",
+      "data": {
+        "Ref": "KeypairsTableB54936D3"
+      }
+    }
+  ],
+  "/WeddingPhotoStack/PhotosTable": [
+    {
+      "type": "aws:cdk:hasPhysicalName",
+      "data": {
+        "Ref": "PhotosTable7E3E5302"
+      }
+    }
+  ],
+  "/WeddingPhotoStack/ConnectionsTable": [
+    {
+      "type": "aws:cdk:hasPhysicalName",
+      "data": {
+        "Ref": "ConnectionsTable8000B8A1"
+      }
+    }
+  ],
+  "/WeddingPhotoStack/WebSocketApi": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "WebSocketApi"
+    }
+  ],
+  "/WeddingPhotoStack/WsLambdaIntegration": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "WsLambdaIntegration"
+    }
+  ],
+  "/WeddingPhotoStack/WsConnectRoute": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "WsConnectRoute"
+    }
+  ],
+  "/WeddingPhotoStack/WsDisconnectRoute": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "WsDisconnectRoute"
+    }
+  ],
+  "/WeddingPhotoStack/WsBroadcastRoute": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "WsBroadcastRoute"
+    }
+  ],
+  "/WeddingPhotoStack/WsStage": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "WsStage"
+    }
+  ],
+  "/WeddingPhotoStack/AWSCloudFrontPartitionHostedZoneIdMap": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "AWSCloudFrontPartitionHostedZoneIdMap"
+    }
+  ],
+  "/WeddingPhotoStack/Custom::CDKBucketDeployment8693BB64968944B69AAFB0CC9EB8756C": [
+    {
+      "type": "aws:cdk:is-custom-resource-handler-singleton",
+      "data": true
+    },
+    {
+      "type": "aws:cdk:is-custom-resource-handler-runtime-family",
+      "data": 2
+    }
+  ],
+  "/WeddingPhotoStack/PhotoBucketName": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "PhotoBucketName"
+    }
+  ],
+  "/WeddingPhotoStack/RestApiUrl": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "RestApiUrl"
+    }
+  ],
+  "/WeddingPhotoStack/WebSocketApiUrl": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "WebSocketApiUrl"
+    }
+  ],
+  "/WeddingPhotoStack/EventsTableName": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "EventsTableName"
+    }
+  ],
+  "/WeddingPhotoStack/PhotosTableName": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "PhotosTableName"
+    }
+  ],
+  "/WeddingPhotoStack/BootstrapVersion": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "BootstrapVersion"
+    }
+  ],
+  "/WeddingPhotoStack/CheckBootstrapVersion": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "CheckBootstrapVersion"
+    }
+  ],
+  "/WeddingPhotoStack/DeadLetterQueue/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "DeadLetterQueue9F481546"
+    }
+  ],
+  "/WeddingPhotoStack/PhotoBucket/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "PhotoBucket465738B3"
+    }
+  ],
+  "/WeddingPhotoStack/EventsTable/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "EventsTableD24865E5"
+    }
+  ],
+  "/WeddingPhotoStack/KeypairsTable/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "KeypairsTableB54936D3"
+    }
+  ],
+  "/WeddingPhotoStack/PhotosTable/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "PhotosTable7E3E5302"
+    }
+  ],
+  "/WeddingPhotoStack/ConnectionsTable/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "ConnectionsTable8000B8A1"
+    }
+  ],
+  "/WeddingPhotoStack/JwtSecret/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "JwtSecretB8834B39"
+    }
+  ],
+  "/WeddingPhotoStack/RestApi/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "RestApi0C43BF4B"
+    }
+  ],
+  "/WeddingPhotoStack/AdminLambda/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "AdminLambda7A0A34D4"
+    }
+  ],
+  "/WeddingPhotoStack/UploadLambda/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "UploadLambdaF57B15C3"
+    }
+  ],
+  "/WeddingPhotoStack/SlideshowLambda/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "SlideshowLambdaAC839581"
+    }
+  ],
+  "/WeddingPhotoStack/MyGuestLambda/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "MyGuestLambda7900681C"
+    }
+  ],
+  "/WeddingPhotoStack/WebSocketLambda/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "WebSocketLambda963E83AF"
+    }
+  ],
+  "/WeddingPhotoStack/AdminLambdaErrorRate/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "AdminLambdaErrorRateCAC059FE"
+    }
+  ],
+  "/WeddingPhotoStack/AdminLambdaDuration/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "AdminLambdaDuration64B93EF0"
+    }
+  ],
+  "/WeddingPhotoStack/UploadLambdaErrorRate/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "UploadLambdaErrorRate5BAB4119"
+    }
+  ],
+  "/WeddingPhotoStack/UploadLambdaDuration/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "UploadLambdaDurationC298DB13"
+    }
+  ],
+  "/WeddingPhotoStack/SlideshowLambdaErrorRate/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "SlideshowLambdaErrorRateF769411A"
+    }
+  ],
+  "/WeddingPhotoStack/SlideshowLambdaDuration/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "SlideshowLambdaDuration86CAFF10"
+    }
+  ],
+  "/WeddingPhotoStack/MyGuestLambdaErrorRate/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "MyGuestLambdaErrorRateF817474F"
+    }
+  ],
+  "/WeddingPhotoStack/MyGuestLambdaDuration/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "MyGuestLambdaDuration15B0F1FC"
+    }
+  ],
+  "/WeddingPhotoStack/WebSocketLambdaErrorRate/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "WebSocketLambdaErrorRate3CC9116E"
+    }
+  ],
+  "/WeddingPhotoStack/WebSocketLambdaDuration/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "WebSocketLambdaDuration7E2E7EB2"
+    }
+  ],
+  "/WeddingPhotoStack/FrontendBucket/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "FrontendBucketEFE2E19C"
+    }
+  ],
+  "/WeddingPhotoStack/CloudFrontDist/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "CloudFrontDist239A6E31"
+    }
+  ],
+  "/WeddingPhotoStack/SiteAlias/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "SiteAliasA0548102"
+    }
+  ],
+  "/WeddingPhotoStack/Custom::CDKBucketDeployment8693BB64968944B69AAFB0CC9EB8756C/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "CustomCDKBucketDeployment8693BB64968944B69AAFB0CC9EB8756C81C01536"
+    }
+  ],
+  "/WeddingPhotoStack/CorsPreflightFunction/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "CorsPreflightFunction9710251B"
+    }
+  ],
+  "/WeddingPhotoStack/ApiCloudFront/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "ApiCloudFrontAB3C33C1"
+    }
+  ],
+  "/WeddingPhotoStack/ApiAlias/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "ApiAliasF1DE69EE"
+    }
+  ],
+  "/WeddingPhotoStack/CDKMetadata/Default": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "CDKMetadata"
+    }
+  ],
+  "/WeddingPhotoStack/DeadLetterQueue/Policy/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "DeadLetterQueuePolicyB1FB890C"
+    }
+  ],
+  "/WeddingPhotoStack/PhotoBucket/Policy/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "PhotoBucketPolicy60C1073C"
+    }
+  ],
+  "/WeddingPhotoStack/RestApi/DefaultStage/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "RestApiDefaultStage58DF1C1E"
+    }
+  ],
+  "/WeddingPhotoStack/RestApi/ANY--admin--login/AdminIntegration-Permission": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "RestApiANYadminloginAdminIntegrationPermissionB37B182C"
+    }
+  ],
+  "/WeddingPhotoStack/RestApi/ANY--admin--login/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "RestApiANYadminlogin79BFC2E6"
+    }
+  ],
+  "/WeddingPhotoStack/RestApi/OPTIONS--admin--login/AdminIntegration-Permission": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "RestApiOPTIONSadminloginAdminIntegrationPermission5B69C7FF"
+    }
+  ],
+  "/WeddingPhotoStack/RestApi/OPTIONS--admin--login/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "RestApiOPTIONSadminlogin08815908"
+    }
+  ],
+  "/WeddingPhotoStack/RestApi/ANY--admin--events/AdminIntegration-Permission": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "RestApiANYadmineventsAdminIntegrationPermission6F0FEA22"
+    }
+  ],
+  "/WeddingPhotoStack/RestApi/ANY--admin--events/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "RestApiANYadminevents529DDB57"
+    }
+  ],
+  "/WeddingPhotoStack/RestApi/OPTIONS--admin--events/AdminIntegration-Permission": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "RestApiOPTIONSadmineventsAdminIntegrationPermissionF1556B67"
+    }
+  ],
+  "/WeddingPhotoStack/RestApi/OPTIONS--admin--events/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "RestApiOPTIONSadminevents685A8C08"
+    }
+  ],
+  "/WeddingPhotoStack/RestApi/ANY--admin--events--{eventId}/AdminIntegration-Permission": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "RestApiANYadmineventseventIdAdminIntegrationPermission4D527A1D"
+    }
+  ],
+  "/WeddingPhotoStack/RestApi/ANY--admin--events--{eventId}/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "RestApiANYadmineventseventId9975172A"
+    }
+  ],
+  "/WeddingPhotoStack/RestApi/OPTIONS--admin--events--{eventId}/AdminIntegration-Permission": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "RestApiOPTIONSadmineventseventIdAdminIntegrationPermissionE6E2DB22"
+    }
+  ],
+  "/WeddingPhotoStack/RestApi/OPTIONS--admin--events--{eventId}/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "RestApiOPTIONSadmineventseventId952B5459"
+    }
+  ],
+  "/WeddingPhotoStack/RestApi/GET--admin--events--{eventId}--photos/AdminIntegration-Permission": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "RestApiGETadmineventseventIdphotosAdminIntegrationPermissionCB02EBB4"
+    }
+  ],
+  "/WeddingPhotoStack/RestApi/GET--admin--events--{eventId}--photos/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "RestApiGETadmineventseventIdphotos62158C77"
+    }
+  ],
+  "/WeddingPhotoStack/RestApi/ANY--admin--photos--{photoId}/AdminIntegration-Permission": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "RestApiANYadminphotosphotoIdAdminIntegrationPermission8A8C5566"
+    }
+  ],
+  "/WeddingPhotoStack/RestApi/ANY--admin--photos--{photoId}/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "RestApiANYadminphotosphotoIdD634E5C3"
+    }
+  ],
+  "/WeddingPhotoStack/RestApi/OPTIONS--admin--photos--{photoId}/AdminIntegration-Permission": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "RestApiOPTIONSadminphotosphotoIdAdminIntegrationPermissionBD5A0C01"
+    }
+  ],
+  "/WeddingPhotoStack/RestApi/OPTIONS--admin--photos--{photoId}/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "RestApiOPTIONSadminphotosphotoId713E724D"
+    }
+  ],
+  "/WeddingPhotoStack/RestApi/ANY--upload--presign/UploadIntegration-Permission": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "RestApiANYuploadpresignUploadIntegrationPermission62335128"
+    }
+  ],
+  "/WeddingPhotoStack/RestApi/ANY--upload--presign/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "RestApiANYuploadpresign97A7A36C"
+    }
+  ],
+  "/WeddingPhotoStack/RestApi/OPTIONS--upload--presign/UploadIntegration-Permission": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "RestApiOPTIONSuploadpresignUploadIntegrationPermission6F8F7907"
+    }
+  ],
+  "/WeddingPhotoStack/RestApi/OPTIONS--upload--presign/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "RestApiOPTIONSuploadpresignF5C10878"
+    }
+  ],
+  "/WeddingPhotoStack/RestApi/ANY--upload--confirm/UploadIntegration-Permission": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "RestApiANYuploadconfirmUploadIntegrationPermission2F6A7DD8"
+    }
+  ],
+  "/WeddingPhotoStack/RestApi/ANY--upload--confirm/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "RestApiANYuploadconfirmCD6222F9"
+    }
+  ],
+  "/WeddingPhotoStack/RestApi/OPTIONS--upload--confirm/UploadIntegration-Permission": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "RestApiOPTIONSuploadconfirmUploadIntegrationPermissionAFF1A4D7"
+    }
+  ],
+  "/WeddingPhotoStack/RestApi/OPTIONS--upload--confirm/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "RestApiOPTIONSuploadconfirm107C4A0A"
+    }
+  ],
+  "/WeddingPhotoStack/RestApi/GET--slideshow--photos/SlideshowIntegration-Permission": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "RestApiGETslideshowphotosSlideshowIntegrationPermissionEF329FB0"
+    }
+  ],
+  "/WeddingPhotoStack/RestApi/GET--slideshow--photos/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "RestApiGETslideshowphotosB9811F88"
+    }
+  ],
+  "/WeddingPhotoStack/RestApi/GET--slideshow--presign--{photoId}/SlideshowIntegration-Permission": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "RestApiGETslideshowpresignphotoIdSlideshowIntegrationPermissionB3A08CC7"
+    }
+  ],
+  "/WeddingPhotoStack/RestApi/GET--slideshow--presign--{photoId}/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "RestApiGETslideshowpresignphotoId24D50469"
+    }
+  ],
+  "/WeddingPhotoStack/RestApi/GET--myguest--photos/MyGuestIntegration-Permission": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "RestApiGETmyguestphotosMyGuestIntegrationPermission1F006D57"
+    }
+  ],
+  "/WeddingPhotoStack/RestApi/GET--myguest--photos/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "RestApiGETmyguestphotos32329CCA"
+    }
+  ],
+  "/WeddingPhotoStack/RestApi/DELETE--myguest--photos--{photoId}/MyGuestIntegration-Permission": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "RestApiDELETEmyguestphotosphotoIdMyGuestIntegrationPermissionE41E2420"
+    }
+  ],
+  "/WeddingPhotoStack/RestApi/DELETE--myguest--photos--{photoId}/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "RestApiDELETEmyguestphotosphotoId30083A55"
+    }
+  ],
+  "/WeddingPhotoStack/AdminLambda/ServiceRole/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "AdminLambdaServiceRole5EEFE3C9"
+    }
+  ],
+  "/WeddingPhotoStack/UploadLambda/ServiceRole/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "UploadLambdaServiceRole7676E203"
+    }
+  ],
+  "/WeddingPhotoStack/SlideshowLambda/ServiceRole/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "SlideshowLambdaServiceRole95E3B62F"
+    }
+  ],
+  "/WeddingPhotoStack/MyGuestLambda/ServiceRole/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "MyGuestLambdaServiceRoleCFADFD16"
+    }
+  ],
+  "/WeddingPhotoStack/WebSocketLambda/ServiceRole/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "WebSocketLambdaServiceRole3DF75EE0"
+    }
+  ],
+  "/WeddingPhotoStack/FrontendBucket/Policy/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "FrontendBucketPolicy1DFF75D9"
+    }
+  ],
+  "/WeddingPhotoStack/DeployFrontend/AwsCliLayer/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "DeployFrontendAwsCliLayerD774ED8F"
+    }
+  ],
+  "/WeddingPhotoStack/DeployFrontend/CustomResource/Default": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "DeployFrontendCustomResource3E02C3B7"
+    }
+  ],
+  "/WeddingPhotoStack/Custom::CDKBucketDeployment8693BB64968944B69AAFB0CC9EB8756C/ServiceRole/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "CustomCDKBucketDeployment8693BB64968944B69AAFB0CC9EB8756CServiceRole89A01265"
+    }
+  ],
+  "/WeddingPhotoStack/RestApi/ANY--admin--login/AdminIntegration/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "RestApiANYadminloginAdminIntegrationB6253702"
+    }
+  ],
+  "/WeddingPhotoStack/RestApi/ANY--upload--presign/UploadIntegration/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "RestApiANYuploadpresignUploadIntegration01FD4322"
+    }
+  ],
+  "/WeddingPhotoStack/RestApi/GET--slideshow--photos/SlideshowIntegration/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "RestApiGETslideshowphotosSlideshowIntegration6B3E8C25"
+    }
+  ],
+  "/WeddingPhotoStack/RestApi/GET--myguest--photos/MyGuestIntegration/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "RestApiGETmyguestphotosMyGuestIntegration8BFF48B4"
+    }
+  ],
+  "/WeddingPhotoStack/AdminLambda/ServiceRole/DefaultPolicy/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "AdminLambdaServiceRoleDefaultPolicy90F8EC81"
+    }
+  ],
+  "/WeddingPhotoStack/UploadLambda/ServiceRole/DefaultPolicy/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "UploadLambdaServiceRoleDefaultPolicyCD46782A"
+    }
+  ],
+  "/WeddingPhotoStack/SlideshowLambda/ServiceRole/DefaultPolicy/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "SlideshowLambdaServiceRoleDefaultPolicy977147F8"
+    }
+  ],
+  "/WeddingPhotoStack/MyGuestLambda/ServiceRole/DefaultPolicy/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "MyGuestLambdaServiceRoleDefaultPolicy8BF00C2C"
+    }
+  ],
+  "/WeddingPhotoStack/WebSocketLambda/ServiceRole/DefaultPolicy/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "WebSocketLambdaServiceRoleDefaultPolicyD0D32AF3"
+    }
+  ],
+  "/WeddingPhotoStack/CloudFrontDist/Origin1/S3Origin/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "CloudFrontDistOrigin1S3Origin4127895F"
+    }
+  ],
+  "/WeddingPhotoStack/Custom::CDKBucketDeployment8693BB64968944B69AAFB0CC9EB8756C/ServiceRole/DefaultPolicy/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "CustomCDKBucketDeployment8693BB64968944B69AAFB0CC9EB8756CServiceRoleDefaultPolicy88902FDF"
+    }
+  ]
+}
