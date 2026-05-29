@@ -77,13 +77,22 @@ export const events = {
     const data = await res.json();
     return data.events ?? [];
   },
-  async create(name: string, date: string) {
+  async create(name: string, date: string, requiresReview = true) {
     const res = await request("/admin/events", {
       method: "POST",
       token: true,
-      body: JSON.stringify({ name, date }),
+      body: JSON.stringify({ name, date, requiresReview }),
     });
     if (!res.ok) throw new Error("建立婚禮失敗");
+    return res.json();
+  },
+  async update(eventId: string, body: { name?: string; date?: string; requiresReview?: boolean }) {
+    const res = await request(`/admin/events/${eventId}`, {
+      method: "PATCH",
+      token: true,
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) throw new Error("更新婚禮失敗");
     return res.json();
   },
   async get(eventId: string) {
