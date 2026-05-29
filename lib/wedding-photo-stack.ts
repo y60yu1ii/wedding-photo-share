@@ -187,8 +187,10 @@ export class WeddingPhotoStack extends cdk.Stack {
         EVENTS_TABLE: this.eventsTable.tableName,
         KEYPAIRS_TABLE: this.keypairsTable.tableName,
         PHOTOS_TABLE: this.photosTable.tableName,
+        CONNECTIONS_TABLE: this.connectionsTable.tableName,
         JWT_SECRET_NAME: jwtSecret.secretName,
         PHOTO_BUCKET: this.photoBucket.bucketName,
+        WEBSOCKET_API_URL: wsApiUrl,
         STAGE,
       },
     });

@@ -11,6 +11,7 @@ import {
 import { SecretsManagerClient, GetSecretValueCommand } from "@aws-sdk/client-secrets-manager";
 import { S3Client, DeleteObjectsCommand, GetObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { ApiGatewayManagementApiClient, PostToConnectionCommand } from "@aws-sdk/client-apigatewaymanagementapi";
 import { SignJWT, jwtVerify } from "jose";
 
 const dynamo = DynamoDBDocumentClient.from(new DynamoDBClient({}));
@@ -276,16 +277,55 @@ async function deleteEvent(eventId: string) {
   await Promise.all(deletes);
 }
 
+async function broadcastNewPhoto(eventId: string, photoId: string, s3Key: string, nickname: string, greeting?: string) {
+  const connections = await dynamo.send(
+    new QueryCommand({
+      TableName: process.env.CONNECTIONS_TABLE!,
+      KeyConditionExpression: "PK = :pk",
+      ExpressionAttributeValues: { ":pk": `EVENT-${eventId}` },
+    })
+  );
+  const items = connections.Items ?? [];
+  const wsUrl = items[0]?.wsEndpoint ?? process.env.WEBSOCKET_API_URL;
+  if (!wsUrl || items.length === 0) return;
+
+  const wsClient = new ApiGatewayManagementApiClient({ endpoint: wsUrl });
+  const message = JSON.stringify({
+    type: "new_photo",
+    photoId,
+    s3Key,
+    nickname,
+    greeting,
+    uploadedAt: new Date().toISOString()
+  });
+
+  await Promise.allSettled(
+    items.map((conn) =>
+      wsClient.send(
+        new PostToConnectionCommand({
+          ConnectionId: conn.connectionId,
+          Data: Buffer.from(message),
+        })
+      )
+    )
+  );
+}
+
 async function approvePhoto(photoId: string) {
-  await dynamo.send(
+  const updateResult = await dynamo.send(
     new UpdateCommand({
       TableName: process.env.PHOTOS_TABLE!,
       Key: { PK: photoId, SK: "METADATA" },
       UpdateExpression: "SET #s = :approved",
       ExpressionAttributeNames: { "#s": "status" },
       ExpressionAttributeValues: { ":approved": "approved" },
+      ReturnValues: "ALL_NEW",
     })
   );
+  const photo = updateResult.Attributes;
+  if (photo && photo.s3Key && photo.eventId) {
+    await broadcastNewPhoto(photo.eventId, photoId, photo.s3Key, photo.nickname, photo.greeting);
+  }
   return { photoId, status: "approved" };
 }
 

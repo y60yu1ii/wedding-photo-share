@@ -73,7 +73,7 @@ function isValidNickname(nickname: string): boolean {
 }
 
 // ─── WebSocket broadcast ────────────────────────────────────────────────────
-async function broadcastNewPhoto(eventId: string, photoId: string, s3Key: string) {
+async function broadcastNewPhoto(eventId: string, photoId: string, s3Key: string, nickname: string, greeting?: string) {
   // Find all connections for this event
   const connections = await dynamo.send(
     new QueryCommand({
@@ -87,7 +87,14 @@ async function broadcastNewPhoto(eventId: string, photoId: string, s3Key: string
   if (!wsUrl || items.length === 0) return;
 
   const wsClient = new ApiGatewayManagementApiClient({ endpoint: wsUrl });
-  const message = JSON.stringify({ type: "new_photo", photoId, s3Key, uploadedAt: new Date().toISOString() });
+  const message = JSON.stringify({
+    type: "new_photo",
+    photoId,
+    s3Key,
+    nickname,
+    greeting,
+    uploadedAt: new Date().toISOString()
+  });
 
   await Promise.allSettled(
     items.map((conn) =>
@@ -230,7 +237,7 @@ async function confirmUpload(
 
   // 5. Broadcast to WebSocket clients
   if (s3Key) {
-    await broadcastNewPhoto(eventId, photoId, s3Key);
+    await broadcastNewPhoto(eventId, photoId, s3Key, cleanNickname, greeting);
   }
 
   return { statusCode: 200, body: JSON.stringify({ photoId, status: finalStatus }) };
