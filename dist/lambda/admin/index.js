@@ -4,9 +4,12 @@ exports.handler = handler;
 const client_dynamodb_1 = require("@aws-sdk/client-dynamodb");
 const lib_dynamodb_1 = require("@aws-sdk/lib-dynamodb");
 const client_secrets_manager_1 = require("@aws-sdk/client-secrets-manager");
+const client_s3_1 = require("@aws-sdk/client-s3");
+const s3_request_presigner_1 = require("@aws-sdk/s3-request-presigner");
 const jose_1 = require("jose");
 const dynamo = lib_dynamodb_1.DynamoDBDocumentClient.from(new client_dynamodb_1.DynamoDBClient({}));
 const secrets = new client_secrets_manager_1.SecretsManagerClient({});
+const s3 = new client_s3_1.S3Client({});
 async function getJwtSecret() {
     const cmd = await secrets.send(new client_secrets_manager_1.GetSecretValueCommand({ SecretId: process.env.JWT_SECRET_NAME }));
     if (!cmd.SecretString)
@@ -62,6 +65,7 @@ async function createEvent(body) {
         date: body.date,
         status: "active",
         createdAt: now,
+        requiresReview: body.requiresReview ?? true, // default to true
         // Store plaintext keys for admin retrieval (hashes still used for validation)
         uploadKey,
         showKey,
@@ -112,13 +116,24 @@ async function getEvent(eventId) {
         hasKeys: !!(resp.Item.uploadKey && resp.Item.showKey),
     };
 }
+async function presignPhoto(s3Key) {
+    const cmd = new client_s3_1.GetObjectCommand({
+        Bucket: process.env.PHOTO_BUCKET,
+        Key: s3Key,
+    });
+    return (0, s3_request_presigner_1.getSignedUrl)(s3, cmd, { expiresIn: 900 });
+}
 async function listEventPhotos(eventId) {
     const resp = await dynamo.send(new lib_dynamodb_1.ScanCommand({
         TableName: process.env.PHOTOS_TABLE,
         FilterExpression: "eventId = :eid",
         ExpressionAttributeValues: { ":eid": eventId },
     }));
-    return resp.Items ?? [];
+    const photos = resp.Items ?? [];
+    return Promise.all(photos.map(async (p) => ({
+        ...p,
+        presignedUrl: p.s3Key ? await presignPhoto(p.s3Key) : undefined,
+    })));
 }
 // Separate function to get event with actual keys (used only for admin display)
 async function getEventWithKeys(eventId) {
@@ -133,32 +148,57 @@ async function getEventWithKeys(eventId) {
         hasKeys: !!(item.uploadKey && item.showKey),
         uploadKey: item.uploadKey ?? "[已產生，請於建立時複製]",
         showKey: item.showKey ?? "[已產生，請於建立時複製]",
+        requiresReview: item.requiresReview !== false, // default to true
         keyNote: item.uploadKey && item.showKey
             ? null
             : "金鑰僅於建立時顯示，請複製並妥善保存。若需重設，請刪除婚禮後重新建立。",
     };
 }
 async function deleteEvent(eventId) {
-    // Delete all photos from S3 (would need separate Lambda for this)
-    // Delete all keypairs via Scan (no GSI on keypairs table)
+    // 1. Find all keypairs associated with the event
     const keypairsResp = await dynamo.send(new lib_dynamodb_1.ScanCommand({
         TableName: process.env.KEYPAIRS_TABLE,
         FilterExpression: "eventId = :eid",
         ExpressionAttributeValues: { ":eid": eventId },
     }));
-    await Promise.all([
-        dynamo.send(new lib_dynamodb_1.UpdateCommand({
-            TableName: process.env.EVENTS_TABLE,
-            Key: { PK: eventId, SK: "METADATA" },
-            UpdateExpression: "SET #s = :s",
-            ExpressionAttributeNames: { "#s": "status" },
-            ExpressionAttributeValues: { ":s": "archived" },
-        })),
-        ...(keypairsResp.Items ?? []).map((k) => dynamo.send(new lib_dynamodb_1.PutCommand({
+    // 2. Find all photos associated with the event
+    const photosResp = await dynamo.send(new lib_dynamodb_1.ScanCommand({
+        TableName: process.env.PHOTOS_TABLE,
+        FilterExpression: "eventId = :eid",
+        ExpressionAttributeValues: { ":eid": eventId },
+    }));
+    const deletes = [];
+    // 3. Physically delete all objects from S3
+    const photoItems = photosResp.Items ?? [];
+    if (photoItems.length > 0) {
+        const s3Keys = photoItems.map((p) => p.s3Key).filter(Boolean);
+        if (s3Keys.length > 0) {
+            deletes.push(s3.send(new client_s3_1.DeleteObjectsCommand({
+                Bucket: process.env.PHOTO_BUCKET,
+                Delete: { Objects: s3Keys.map((k) => ({ Key: k })) },
+            })).catch((err) => console.error("Failed to delete S3 photos:", err)));
+        }
+    }
+    // 4. Physically delete the wedding event metadata
+    deletes.push(dynamo.send(new lib_dynamodb_1.DeleteCommand({
+        TableName: process.env.EVENTS_TABLE,
+        Key: { PK: eventId, SK: "METADATA" },
+    })));
+    // 5. Physically delete all keypairs from KeypairsTable
+    for (const k of (keypairsResp.Items ?? [])) {
+        deletes.push(dynamo.send(new lib_dynamodb_1.DeleteCommand({
             TableName: process.env.KEYPAIRS_TABLE,
-            Item: { ...k, _deleted: true },
-        }))),
-    ]);
+            Key: { PK: k.PK, SK: k.SK },
+        })));
+    }
+    // 6. Physically delete all photo records from PhotosTable
+    for (const p of photoItems) {
+        deletes.push(dynamo.send(new lib_dynamodb_1.DeleteCommand({
+            TableName: process.env.PHOTOS_TABLE,
+            Key: { PK: p.PK, SK: p.SK },
+        })));
+    }
+    await Promise.all(deletes);
 }
 async function approvePhoto(photoId) {
     await dynamo.send(new lib_dynamodb_1.UpdateCommand({
@@ -180,6 +220,36 @@ async function verifyToken(token) {
     catch {
         return false;
     }
+}
+async function updateEvent(eventId, body) {
+    const updates = [];
+    const attrNames = {};
+    const attrValues = {};
+    if (body.name !== undefined) {
+        updates.push("#n = :name");
+        attrNames["#n"] = "name";
+        attrValues[":name"] = body.name;
+    }
+    if (body.date !== undefined) {
+        updates.push("#d = :date");
+        attrNames["#d"] = "date";
+        attrValues[":date"] = body.date;
+    }
+    if (body.requiresReview !== undefined) {
+        updates.push("#r = :reqRev");
+        attrNames["#r"] = "requiresReview";
+        attrValues[":reqRev"] = body.requiresReview;
+    }
+    if (updates.length === 0)
+        return { success: true };
+    await dynamo.send(new lib_dynamodb_1.UpdateCommand({
+        TableName: process.env.EVENTS_TABLE,
+        Key: { PK: eventId, SK: "METADATA" },
+        UpdateExpression: `SET ${updates.join(", ")}`,
+        ExpressionAttributeNames: attrNames,
+        ExpressionAttributeValues: attrValues,
+    }));
+    return { success: true };
 }
 const CORS_HEADERS = {
     "Access-Control-Allow-Origin": "*",
@@ -251,6 +321,13 @@ async function handler(event) {
             const eventId = decodeURIComponent(path.split("/")[3]);
             await deleteEvent(eventId);
             return res(200, { success: true });
+        }
+        // PATCH /admin/events/{eventId}
+        if (path.match(/^\/admin\/events\/[^/]+$/) && method === "PATCH") {
+            const eventId = decodeURIComponent(path.split("/")[3]);
+            const body = JSON.parse(event.body ?? "{}");
+            const result = await updateEvent(eventId, body);
+            return res(200, result);
         }
         // PATCH /admin/photos/{photoId}
         if (path.match(/^\/admin\/photos\/[^/]+$/) && method === "PATCH") {

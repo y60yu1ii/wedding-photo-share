@@ -7,6 +7,16 @@ Object.defineProperty(exports, "__esModule", { value: true });
 /* eslint-disable @typescript-eslint/no-explicit-any */
 const mockSend = jest.fn();
 const mockSecretsSend = jest.fn();
+const mockS3Send = jest.fn();
+jest.mock("@aws-sdk/client-s3", () => ({
+    S3Client: jest.fn().mockImplementation(() => ({ send: mockS3Send })),
+    GetObjectCommand: jest.fn().mockImplementation((i) => ({ input: i })),
+    DeleteObjectCommand: jest.fn().mockImplementation((i) => ({ input: i })),
+    DeleteObjectsCommand: jest.fn().mockImplementation((i) => ({ input: i })),
+}));
+jest.mock("@aws-sdk/s3-request-presigner", () => ({
+    getSignedUrl: jest.fn().mockResolvedValue("https://mock-presigned-url"),
+}));
 jest.mock("@aws-sdk/client-dynamodb", () => ({
     DynamoDBClient: jest.fn().mockImplementation(() => ({})),
 }));
@@ -19,6 +29,7 @@ jest.mock("@aws-sdk/lib-dynamodb", () => ({
     QueryCommand: jest.fn().mockImplementation((i) => ({ input: i })),
     UpdateCommand: jest.fn().mockImplementation((i) => ({ input: i })),
     ScanCommand: jest.fn().mockImplementation((i) => ({ input: i })),
+    DeleteCommand: jest.fn().mockImplementation((i) => ({ input: i })),
 }));
 jest.mock("@aws-sdk/client-secrets-manager", () => ({
     SecretsManagerClient: jest.fn().mockImplementation(() => ({ send: mockSecretsSend })),
@@ -56,6 +67,7 @@ jest.mock("jose", () => {
 // Stash mocks on globalThis so imports below can reference them after hoisting
 globalThis.__mockSend = mockSend;
 globalThis.__mockSecretsSend = mockSecretsSend;
+globalThis.__mockS3Send = mockS3Send;
 const index_1 = require("../../lambda/admin/index");
 beforeEach(() => {
     jest.clearAllMocks();
@@ -63,6 +75,7 @@ beforeEach(() => {
     process.env.EVENTS_TABLE = "events-table";
     process.env.KEYPAIRS_TABLE = "keypairs-table";
     process.env.PHOTOS_TABLE = "photos-table";
+    process.env.PHOTO_BUCKET = "photo-bucket";
     process.env.JWT_SECRET_NAME = "jwt-secret-name";
     process.env.STAGE = "prod";
     process.env.ADMIN_USER = "admin";
@@ -166,6 +179,63 @@ describe("POST /admin/events (authenticated)", () => {
         await (0, index_1.handler)(event);
         // Should have been called 3 times: 1 event + 2 keypairs
         expect(mockSend).toHaveBeenCalledTimes(3);
+    });
+    describe("DELETE /admin/events/{eventId} (authenticated cascade)", () => {
+        test("performs physical cascade deletion", async () => {
+            // 1. Scan keypairs returns 1 item
+            // 2. Scan photos returns 1 item
+            mockSend
+                .mockResolvedValueOnce({ Items: [{ PK: "KEY#1", SK: "METADATA", eventId: "EVENT-1" }] }) // keypairs scan
+                .mockResolvedValueOnce({ Items: [{ PK: "PHOTO#1", SK: "METADATA", eventId: "EVENT-1", s3Key: "prod/EVENT-1/PHOTO#1.jpg" }] }) // photos scan
+                .mockResolvedValueOnce({}) // delete event metadata
+                .mockResolvedValueOnce({}) // delete keypairs item
+                .mockResolvedValueOnce({}); // delete photos item
+            mockS3Send.mockResolvedValue({}); // S3 delete objects
+            const event = {
+                requestContext: { http: { method: "DELETE", path: "/admin/events/EVENT-1" } },
+                headers: authHeaders(),
+            };
+            const result = await (0, index_1.handler)(event);
+            expect(result.statusCode).toBe(200);
+            expect(JSON.parse(result.body).success).toBe(true);
+            // Verify DynamoDB commands were sent (2 scans + 3 deletes = 5 times)
+            expect(mockSend).toHaveBeenCalledTimes(5);
+            // Verify S3 delete was called
+            expect(mockS3Send).toHaveBeenCalled();
+        });
+    });
+    describe("GET /admin/events/{eventId}/photos (authenticated)", () => {
+        test("returns photos with S3 presigned URLs", async () => {
+            mockSend.mockResolvedValueOnce({
+                Items: [
+                    { PK: "PHOTO#1", SK: "METADATA", eventId: "EVENT-1", s3Key: "prod/EVENT-1/PHOTO#1.jpg", nickname: "Alice", status: "pending" }
+                ]
+            });
+            const event = {
+                requestContext: { http: { method: "GET", path: "/admin/events/EVENT-1/photos" } },
+                headers: authHeaders(),
+            };
+            const result = await (0, index_1.handler)(event);
+            expect(result.statusCode).toBe(200);
+            const body = JSON.parse(result.body);
+            expect(body.photos).toHaveLength(1);
+            expect(body.photos[0].presignedUrl).toBe("https://mock-presigned-url");
+        });
+    });
+    describe("PATCH /admin/events/{eventId} (authenticated)", () => {
+        test("successfully updates event properties including requiresReview", async () => {
+            mockSend.mockResolvedValueOnce({}); // UpdateCommand response
+            const event = {
+                requestContext: { http: { method: "PATCH", path: "/admin/events/EVENT-1" } },
+                headers: authHeaders(),
+                body: JSON.stringify({ name: "Updated Name", requiresReview: false }),
+            };
+            const result = await (0, index_1.handler)(event);
+            expect(result.statusCode).toBe(200);
+            const body = JSON.parse(result.body);
+            expect(body.success).toBe(true);
+            expect(mockSend).toHaveBeenCalled();
+        });
     });
 });
 describe("Unknown routes", () => {

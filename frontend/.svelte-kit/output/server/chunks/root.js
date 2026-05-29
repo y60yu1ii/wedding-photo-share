@@ -1,5 +1,5 @@
 import { l as lifecycle_outside_component, B as BROWSER, i as invalid_csp, a as await_invalid, g as get_render_context, b as invalid_id_prefix } from "./render-context.js";
-import { r as run_all, e as deferred, k as includes, o as noop, p as object_prototype, b as array_prototype, h as get_descriptor, i as get_prototype_of, m as is_array, n as is_extensible, l as index_of, q as to_style, d as clsx, t as to_class, c as attr, g as escape_html, j as has_own_property, f as define_property, a as array_from } from "./attributes.js";
+import { r as run_all, e as deferred, k as includes, o as noop, p as object_prototype, b as array_prototype, h as get_descriptor, i as get_prototype_of, m as is_array, n as is_extensible, l as index_of, g as escape_html, t as to_class, q as to_style, d as clsx, c as attr, j as has_own_property, f as define_property, a as array_from } from "./attributes.js";
 import * as devalue from "devalue";
 var ssr_context = null;
 function set_ssr_context(v) {
@@ -2702,6 +2702,10 @@ function attributes(attrs, css_hash, classes, styles, flags2 = 0) {
 function stringify(value) {
   return typeof value === "string" ? value : value == null ? "" : value + "";
 }
+function attr_class(value, hash, directives) {
+  var result = to_class(value, hash, directives);
+  return result ? ` class="${escape_html(result, true)}"` : "";
+}
 function store_get(store_values, store_name, store) {
   if (store_name in store_values && store_values[store_name][0] === store) {
     return store_values[store_name][2];
@@ -3978,8 +3982,9 @@ function Root($$renderer, $$props) {
 }
 const root = asClassComponent(Root);
 export {
-  store_get as a,
-  stringify as b,
+  attr_class as a,
+  store_get as b,
+  stringify as c,
   derived as d,
   getContext as g,
   root as r,

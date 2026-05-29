@@ -8,6 +8,7 @@
   let showCreate = $state(false);
   let newName = $state("");
   let newDate = $state("");
+  let requiresReview = $state(true);
   let deletingId = $state<string | null>(null);
   let selected = $state<Set<string>>(new Set());
   let batchDeleting = $state(false);
@@ -45,10 +46,11 @@
 
   async function createEvent() {
     if (!newName.trim() || !newDate) return;
-    const result = await events.create(newName, newDate);
+    const result = await events.create(newName, newDate, requiresReview);
     showCreate = false;
     newName = "";
     newDate = "";
+    requiresReview = true;
     loadEvents();
     goto(`/admin/event/${result.PK}`);
   }
@@ -112,6 +114,15 @@
           bind:value={newDate}
           class="w-full px-4 py-2.5 border border-[#e8d5c4] rounded-lg text-sm focus:outline-none focus:border-[#d4a373]"
         />
+        <div class="flex items-center gap-2 py-1 px-1">
+          <input
+            type="checkbox"
+            bind:checked={requiresReview}
+            id="newRequiresReview"
+            class="w-4 h-4 accent-[#d4a373] cursor-pointer"
+          />
+          <label for="newRequiresReview" class="text-xs text-[#8b7355] cursor-pointer">賓客上傳的照片需經管理員審核</label>
+        </div>
         <div class="flex gap-2">
           <button onclick={createEvent} class="flex-1 py-2 bg-[#d4a373] text-white rounded-lg text-sm font-medium">建立</button>
           <button onclick={() => showCreate = false} class="flex-1 py-2 border border-[#e8d5c4] rounded-lg text-sm">取消</button>

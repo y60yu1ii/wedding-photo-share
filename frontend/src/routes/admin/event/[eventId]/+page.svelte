@@ -32,6 +32,18 @@
     photos = photos.map((p) => p.PK === photoId ? { ...p, status: "approved" } : p);
   }
 
+  async function toggleReviewSetting() {
+    const updatedValue = !event.requiresReview;
+    try {
+      await events.update(eventId, { requiresReview: updatedValue });
+      event.requiresReview = { ...event, requiresReview: updatedValue }.requiresReview;
+      // Also reload data or update event directly to make sure Svelte 5 states are properly reactively synced
+      event = { ...event, requiresReview: updatedValue };
+    } catch (e: any) {
+      alert(e.message || "更新失敗");
+    }
+  }
+
   const pending = $derived(photos.filter((p) => p.status === "pending"));
   const approved = $derived(photos.filter((p) => p.status === "approved"));
 
@@ -97,6 +109,22 @@
             class="mt-1.5 text-xs bg-[#f5ede3] hover:bg-[#e8d5c4] text-[#8b7355] px-3 py-1 rounded-md transition-colors"
           >📋 複製連結</button>
         </div>
+      </div>
+
+      <!-- Photo Review Toggle Setting -->
+      <div class="mt-4 pt-4 border-t border-[#e8d5c4] flex items-center justify-between">
+        <div>
+          <p class="text-xs font-semibold text-[#8b7355]">📢 照片發布設定</p>
+          <p class="text-[11px] text-gray-500 mt-0.5">
+            {event.requiresReview ? "賓客上傳的照片需經管理員審核後才公開" : "賓客照片上傳完成後免審核直接公開發布"}
+          </p>
+        </div>
+        <button
+          onclick={toggleReviewSetting}
+          class="text-xs font-semibold px-3 py-1.5 rounded-lg border transition-colors {event.requiresReview ? 'border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100' : 'border-green-200 bg-green-50 text-green-700 hover:bg-green-100'}"
+        >
+          {event.requiresReview ? "🔓 切換為免審核" : "🔒 切換為需審核"}
+        </button>
       </div>
     {:else}
       <p class="text-sm text-[#8b7355] text-center py-4">此婚禮尚無金鑰，請重新建立。</p>

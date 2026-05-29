@@ -85,13 +85,15 @@ describe("WeddingPhotoStack", () => {
             const lambdas = byType(resources, "AWS::Lambda::Function");
             expect(lambdas.length).toBeGreaterThanOrEqual(5);
         });
-        test("upload Lambda has PHOTOS_TABLE and PHOTO_BUCKET env vars", () => {
+        test("upload Lambda has PHOTOS_TABLE, PHOTO_BUCKET and EVENTS_TABLE env vars", () => {
             const uploadLambda = byType(resources, "AWS::Lambda::Function").find((r) => r.Properties.Environment?.Variables?.PHOTOS_TABLE &&
-                r.Properties.Environment?.Variables?.PHOTO_BUCKET);
+                r.Properties.Environment?.Variables?.PHOTO_BUCKET &&
+                r.Properties.Environment?.Variables?.EVENTS_TABLE);
             expect(uploadLambda).toBeDefined();
         });
-        test("admin Lambda has JWT_SECRET_NAME env var", () => {
-            const adminLambda = byType(resources, "AWS::Lambda::Function").find((r) => r.Properties.Environment?.Variables?.JWT_SECRET_NAME);
+        test("admin Lambda has JWT_SECRET_NAME and PHOTO_BUCKET env vars", () => {
+            const adminLambda = byType(resources, "AWS::Lambda::Function").find((r) => r.Properties.Environment?.Variables?.JWT_SECRET_NAME &&
+                r.Properties.Environment?.Variables?.PHOTO_BUCKET);
             expect(adminLambda).toBeDefined();
         });
         test("slideshow Lambda timeout is 30s (baseLambdaProps default)", () => {
@@ -160,10 +162,12 @@ describe("WeddingPhotoStack", () => {
             expect(dists.length).toBeGreaterThan(0);
             const apiDist = dists.find((d) => d.Properties.DistributionConfig?.Aliases?.includes("api.fishare.de"));
             expect(apiDist).toBeDefined();
-            const associations = apiDist.Properties.DistributionConfig?.DefaultCacheBehavior?.FunctionAssociations ??
-                apiDist.Properties.DistributionConfig?.DefaultBehavior?.FunctionAssociations;
-            expect(associations).toBeDefined();
-            expect(associations[0].EventType).toBe("viewer-response");
+            const defaultBehavior = apiDist.Properties.DistributionConfig?.DefaultCacheBehavior;
+            expect(defaultBehavior).toBeDefined();
+            expect(defaultBehavior.FunctionAssociations[0].EventType).toBe("viewer-response");
+            // Verify caching is disabled and query strings / headers are forwarded
+            expect(defaultBehavior.CachePolicyId).toBeDefined();
+            expect(defaultBehavior.OriginRequestPolicyId).toBeDefined();
         });
     });
 });
