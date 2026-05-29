@@ -4,6 +4,7 @@ import {
   PutCommand,
   QueryCommand,
   UpdateCommand,
+  GetCommand,
 } from "@aws-sdk/lib-dynamodb";
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
@@ -177,6 +178,16 @@ async function confirmUpload(
   }
   const cleanNickname = sanitizeNickname(nickname);
 
+  // Fetch event metadata to check if it requires review
+  const eventGet = await dynamo.send(
+    new GetCommand({
+      TableName: process.env.EVENTS_TABLE!,
+      Key: { PK: eventId, SK: "METADATA" },
+    })
+  );
+  const requiresReview = eventGet.Item?.requiresReview !== false; // default to true
+  const finalStatus = requiresReview ? "pending" : "approved";
+
   // 3. Update DynamoDB record
   await dynamo.send(
     new UpdateCommand({
@@ -186,7 +197,7 @@ async function confirmUpload(
       ExpressionAttributeNames: { "#status": "status" },
       ExpressionAttributeValues: {
         ":n": cleanNickname,
-        ":s": "pending",
+        ":s": finalStatus,
         ":c": new Date().toISOString(),
       },
       ConditionExpression: "attribute_exists(PK) AND attribute_exists(SK)",
@@ -208,7 +219,7 @@ async function confirmUpload(
     await broadcastNewPhoto(eventId, photoId, s3Key);
   }
 
-  return { statusCode: 200, body: JSON.stringify({ photoId, status: "pending" }) };
+  return { statusCode: 200, body: JSON.stringify({ photoId, status: finalStatus }) };
 }
 
 // ─── Handler ────────────────────────────────────────────────────────────────

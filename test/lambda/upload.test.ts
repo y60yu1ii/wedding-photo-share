@@ -15,6 +15,7 @@ jest.mock("@aws-sdk/lib-dynamodb", () => ({
   PutCommand: jest.fn().mockImplementation((i: any) => ({ input: i })),
   QueryCommand: jest.fn().mockImplementation((i: any) => ({ input: i })),
   UpdateCommand: jest.fn().mockImplementation((i: any) => ({ input: i })),
+  GetCommand: jest.fn().mockImplementation((i: any) => ({ input: i })),
 }));
 
 jest.mock("@aws-sdk/client-s3", () => ({
@@ -62,9 +63,10 @@ describe("POST /upload/presign", () => {
 });
 
 describe("POST /upload/confirm", () => {
-  test("returns 200 pending for valid key and nickname", async () => {
+  test("returns 200 pending for valid key and nickname (requiresReview = true)", async () => {
     mockDdbSend
       .mockResolvedValueOnce({ Items: [{ eventId: "EVENT-1" }] }) // validate key
+      .mockResolvedValueOnce({ Item: { PK: "EVENT-1", SK: "METADATA", requiresReview: true } }) // fetch event metadata
       .mockResolvedValueOnce({}) // update photo
       .mockResolvedValueOnce({ Items: [{ s3Key: "prod/EVENT-1/PHOTO#1.jpg" }] }) // fetch photo
       .mockResolvedValueOnce({ Items: [] }); // query connections
@@ -81,6 +83,28 @@ describe("POST /upload/confirm", () => {
     const result = await handler(event);
     expect(result.statusCode).toBe(200);
     expect(JSON.parse(result.body).status).toBe("pending");
+  });
+
+  test("returns 200 approved when requiresReview is false", async () => {
+    mockDdbSend
+      .mockResolvedValueOnce({ Items: [{ eventId: "EVENT-1" }] }) // validate key
+      .mockResolvedValueOnce({ Item: { PK: "EVENT-1", SK: "METADATA", requiresReview: false } }) // fetch event metadata
+      .mockResolvedValueOnce({}) // update photo
+      .mockResolvedValueOnce({ Items: [{ s3Key: "prod/EVENT-1/PHOTO#1.jpg" }] }) // fetch photo
+      .mockResolvedValueOnce({ Items: [] }); // query connections
+
+    const event = {
+      requestContext: { http: { method: "POST", path: "/upload/confirm" } },
+      queryStringParameters: { key: "GOODKEY" },
+      body: JSON.stringify({
+        eventId: "EVENT-1",
+        photoId: "PHOTO#1",
+        nickname: "Alice",
+      }),
+    };
+    const result = await handler(event);
+    expect(result.statusCode).toBe(200);
+    expect(JSON.parse(result.body).status).toBe("approved");
   });
 
   test("returns 400 for invalid nickname format", async () => {

@@ -263,6 +263,24 @@ describe("POST /admin/events (authenticated)", () => {
       expect(body.photos[0].presignedUrl).toBe("https://mock-presigned-url");
     });
   });
+
+  describe("PATCH /admin/events/{eventId} (authenticated)", () => {
+    test("successfully updates event properties including requiresReview", async () => {
+      mockSend.mockResolvedValueOnce({}); // UpdateCommand response
+
+      const event = {
+        requestContext: { http: { method: "PATCH", path: "/admin/events/EVENT-1" } },
+        headers: authHeaders(),
+        body: JSON.stringify({ name: "Updated Name", requiresReview: false }),
+      };
+
+      const result = await handler(event);
+      expect(result.statusCode).toBe(200);
+      const body = JSON.parse(result.body as string);
+      expect(body.success).toBe(true);
+      expect(mockSend).toHaveBeenCalled();
+    });
+  });
 });
 
 describe("Unknown routes", () => {

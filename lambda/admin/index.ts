@@ -77,7 +77,7 @@ async function listEvents() {
   );
 }
 
-async function createEvent(body: { name: string; date: string }) {
+async function createEvent(body: { name: string; date: string; requiresReview?: boolean }) {
   const PK = `EVENT-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
   const now = new Date().toISOString();
 
@@ -94,6 +94,7 @@ async function createEvent(body: { name: string; date: string }) {
     date: body.date,
     status: "active",
     createdAt: now,
+    requiresReview: body.requiresReview ?? true, // default to true
     // Store plaintext keys for admin retrieval (hashes still used for validation)
     uploadKey,
     showKey,
@@ -194,6 +195,7 @@ async function getEventWithKeys(eventId: string) {
     hasKeys: !!(item.uploadKey && item.showKey),
     uploadKey: item.uploadKey ?? "[已產生，請於建立時複製]",
     showKey: item.showKey ?? "[已產生，請於建立時複製]",
+    requiresReview: item.requiresReview !== false, // default to true
     keyNote: item.uploadKey && item.showKey
       ? null
       : "金鑰僅於建立時顯示，請複製並妥善保存。若需重設，請刪除婚禮後重新建立。",
@@ -298,6 +300,39 @@ async function verifyToken(token: string): Promise<boolean> {
   }
 }
 
+async function updateEvent(eventId: string, body: { name?: string; date?: string; requiresReview?: boolean }) {
+  const updates: string[] = [];
+  const attrNames: Record<string, string> = {};
+  const attrValues: Record<string, any> = {};
+
+  if (body.name !== undefined) {
+    updates.push("#n = :name");
+    attrNames["#n"] = "name";
+    attrValues[":name"] = body.name;
+  }
+  if (body.date !== undefined) {
+    updates.push("#d = :date");
+    attrNames["#d"] = "date";
+    attrValues[":date"] = body.date;
+  }
+  if (body.requiresReview !== undefined) {
+    updates.push("#r = :reqRev");
+    attrNames["#r"] = "requiresReview";
+    attrValues[":reqRev"] = body.requiresReview;
+  }
+
+  if (updates.length === 0) return { success: true };
+
+  await dynamo.send(new UpdateCommand({
+    TableName: process.env.EVENTS_TABLE!,
+    Key: { PK: eventId, SK: "METADATA" },
+    UpdateExpression: `SET ${updates.join(", ")}`,
+    ExpressionAttributeNames: attrNames,
+    ExpressionAttributeValues: attrValues,
+  }));
+  return { success: true };
+}
+
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "Content-Type,Authorization",
@@ -376,6 +411,14 @@ export async function handler(event: any) {
       const eventId = decodeURIComponent(path.split("/")[3]);
       await deleteEvent(eventId);
       return res(200, { success: true });
+    }
+
+    // PATCH /admin/events/{eventId}
+    if (path.match(/^\/admin\/events\/[^/]+$/) && method === "PATCH") {
+      const eventId = decodeURIComponent(path.split("/")[3]);
+      const body = JSON.parse(event.body ?? "{}");
+      const result = await updateEvent(eventId, body);
+      return res(200, result);
     }
 
     // PATCH /admin/photos/{photoId}
