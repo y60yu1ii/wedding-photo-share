@@ -169,7 +169,8 @@ async function confirmUpload(
   photoId: string,
   eventId: string,
   nickname: string,
-  uploadKey: string
+  uploadKey: string,
+  greeting?: string
 ) {
   // 1. Validate upload key
   const keyValid = await validateUploadKey(eventId, uploadKey);
@@ -194,17 +195,25 @@ async function confirmUpload(
   const finalStatus = requiresReview ? "pending" : "approved";
 
   // 3. Update DynamoDB record
+  const updateExpr = greeting
+    ? "SET nickname = :n, #status = :s, confirmedAt = :c, greeting = :g"
+    : "SET nickname = :n, #status = :s, confirmedAt = :c";
+  const exprValues: Record<string, any> = {
+    ":n": cleanNickname,
+    ":s": finalStatus,
+    ":c": new Date().toISOString(),
+  };
+  if (greeting) {
+    exprValues[":g"] = greeting.slice(0, 50); // limit to 50 chars
+  }
+
   await dynamo.send(
     new UpdateCommand({
       TableName: process.env.PHOTOS_TABLE!,
       Key: { PK: photoId, SK: "METADATA" },
-      UpdateExpression: "SET nickname = :n, #status = :s, confirmedAt = :c",
+      UpdateExpression: updateExpr,
       ExpressionAttributeNames: { "#status": "status" },
-      ExpressionAttributeValues: {
-        ":n": cleanNickname,
-        ":s": finalStatus,
-        ":c": new Date().toISOString(),
-      },
+      ExpressionAttributeValues: exprValues,
       ConditionExpression: "attribute_exists(PK) AND attribute_exists(SK)",
     })
   );
@@ -265,11 +274,11 @@ export async function handler(event: any) {
 
     // POST /upload/confirm
     if (path === "/upload/confirm" && method === "POST") {
-      const { eventId, photoId, nickname } = body;
+      const { eventId, photoId, nickname, greeting } = body;
       if (!eventId || !photoId || !nickname) {
         return { statusCode: 400, body: JSON.stringify({ error: "missing fields" }) };
       }
-      const result = await confirmUpload(photoId, eventId, nickname, queryKey);
+      const result = await confirmUpload(photoId, eventId, nickname, queryKey, greeting);
       return result;
     }
 

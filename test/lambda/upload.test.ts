@@ -177,4 +177,31 @@ describe("POST /upload/confirm", () => {
     expect(result.statusCode).toBe(200);
     expect(JSON.parse(result.body).status).toBe("approved");
   });
+
+  test("saves greeting message in DynamoDB during confirmUpload", async () => {
+    mockDdbSend
+      .mockResolvedValueOnce({ Items: [{ eventId: "EVENT-1" }] }) // validate key
+      .mockResolvedValueOnce({ Item: { PK: "EVENT-1", SK: "METADATA", requiresReview: false } }) // fetch event metadata
+      .mockResolvedValueOnce({}) // update photo
+      .mockResolvedValueOnce({ Items: [{ s3Key: "prod/EVENT-1/PHOTO#1.jpg" }] }) // fetch photo
+      .mockResolvedValueOnce({ Items: [] }); // query connections
+
+    const event = {
+      requestContext: { http: { method: "POST", path: "/upload/confirm" } },
+      queryStringParameters: { key: "GOODKEY" },
+      body: JSON.stringify({
+        eventId: "EVENT-1",
+        photoId: "PHOTO#1",
+        nickname: "張三",
+        greeting: "祝新婚快樂，白頭偕老！",
+      }),
+    };
+    const result = await handler(event);
+    expect(result.statusCode).toBe(200);
+    
+    // The 3rd DynamoDB call is UpdateCommand. Verify it contains the greeting
+    const updateCall = mockDdbSend.mock.calls[2][0];
+    expect(updateCall.input.UpdateExpression).toContain("greeting = :g");
+    expect(updateCall.input.ExpressionAttributeValues[":g"]).toBe("祝新婚快樂，白頭偕老！");
+  });
 });
