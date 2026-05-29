@@ -57,14 +57,19 @@ function sha256(text: string): Promise<string> {
 }
 
 function sanitizeNickname(nickname: string): string {
+  // Strip dangerous HTML tag delimiters < and > to prevent basic XSS injections
   return nickname
-    .replace(/[^\p{Script=Han}a-zA-Z0-9 ]/gu, "")
+    .replace(/[<>]/g, "")
     .trim()
     .slice(0, 20);
 }
 
 function isValidNickname(nickname: string): boolean {
-  return /^[\p{Script=Han}a-zA-Z0-9 ]{2,20}$/u.test(nickname);
+  // Allow Chinese, English, numbers, spaces, common punctuation between 2 and 20 characters.
+  // Must not contain HTML tag delimiters < and >.
+  const hasHtml = /[<>]/.test(nickname);
+  const trimmed = nickname.trim();
+  return !hasHtml && trimmed.length >= 2 && trimmed.length <= 20;
 }
 
 // ─── WebSocket broadcast ────────────────────────────────────────────────────
@@ -110,8 +115,8 @@ async function presignUpload(
     return { statusCode: 403, body: JSON.stringify({ error: "Invalid or expired key" }) };
   }
 
-  // 2. Validate content type
-  if (!Object.keys(MAGIC_BYTES).includes(contentType)) {
+  // 2. Validate content type (accept any image/* format)
+  if (!contentType.toLowerCase().startsWith("image/")) {
     return { statusCode: 400, body: JSON.stringify({ error: "Unsupported file type" }) };
   }
 

@@ -60,6 +60,40 @@ describe("POST /upload/presign", () => {
     const result = await handler(event);
     expect(result.statusCode).toBe(403);
   });
+
+  test("accepts diverse image formats like webp and gif", async () => {
+    mockDdbSend
+      .mockResolvedValueOnce({ Items: [{ eventId: "EVENT-1" }] }) // validate key
+      .mockResolvedValueOnce({}); // put photo pending
+    const event = {
+      requestContext: { http: { method: "POST", path: "/upload/presign" } },
+      queryStringParameters: { key: "GOODKEY" },
+      body: JSON.stringify({
+        eventId: "EVENT-1",
+        filename: "a.webp",
+        contentType: "image/webp",
+        fileSize: 100,
+      }),
+    };
+    const result = await handler(event);
+    expect(result.statusCode).toBe(200);
+  });
+
+  test("rejects non-image formats like pdf", async () => {
+    mockDdbSend.mockResolvedValueOnce({ Items: [{ eventId: "EVENT-1" }] }); // validate key
+    const event = {
+      requestContext: { http: { method: "POST", path: "/upload/presign" } },
+      queryStringParameters: { key: "GOODKEY" },
+      body: JSON.stringify({
+        eventId: "EVENT-1",
+        filename: "a.pdf",
+        contentType: "application/pdf",
+        fileSize: 100,
+      }),
+    };
+    const result = await handler(event);
+    expect(result.statusCode).toBe(400);
+  });
 });
 
 describe("POST /upload/confirm", () => {
@@ -120,5 +154,27 @@ describe("POST /upload/confirm", () => {
     };
     const result = await handler(event);
     expect(result.statusCode).toBe(400);
+  });
+
+  test("accepts Chinese and English Unicode nicknames", async () => {
+    mockDdbSend
+      .mockResolvedValueOnce({ Items: [{ eventId: "EVENT-1" }] }) // validate key
+      .mockResolvedValueOnce({ Item: { PK: "EVENT-1", SK: "METADATA", requiresReview: false } }) // fetch event metadata
+      .mockResolvedValueOnce({}) // update photo
+      .mockResolvedValueOnce({ Items: [{ s3Key: "prod/EVENT-1/PHOTO#1.jpg" }] }) // fetch photo
+      .mockResolvedValueOnce({ Items: [] }); // query connections
+
+    const event = {
+      requestContext: { http: { method: "POST", path: "/upload/confirm" } },
+      queryStringParameters: { key: "GOODKEY" },
+      body: JSON.stringify({
+        eventId: "EVENT-1",
+        photoId: "PHOTO#1",
+        nickname: "張三 Alice 12",
+      }),
+    };
+    const result = await handler(event);
+    expect(result.statusCode).toBe(200);
+    expect(JSON.parse(result.body).status).toBe("approved");
   });
 });
