@@ -2706,6 +2706,10 @@ function attr_class(value, hash, directives) {
   var result = to_class(value, hash, directives);
   return result ? ` class="${escape_html(result, true)}"` : "";
 }
+function attr_style(value, directives) {
+  var result = to_style(value, directives);
+  return result ? ` style="${escape_html(result, true)}"` : "";
+}
 function store_get(store_values, store_name, store) {
   if (store_name in store_values && store_values[store_name][0] === store) {
     return store_values[store_name][2];
@@ -2724,6 +2728,12 @@ function unsubscribe_stores(store_values) {
   for (const store_name of Object.keys(store_values)) {
     store_values[store_name][1]();
   }
+}
+function ensure_array_like(array_like_or_iterator) {
+  if (array_like_or_iterator) {
+    return array_like_or_iterator.length !== void 0 ? array_like_or_iterator : Array.from(array_like_or_iterator);
+  }
+  return [];
 }
 function once(get_value) {
   let value = (
@@ -3983,9 +3993,11 @@ function Root($$renderer, $$props) {
 const root = asClassComponent(Root);
 export {
   attr_class as a,
-  store_get as b,
-  stringify as c,
+  attr_style as b,
+  store_get as c,
   derived as d,
+  ensure_array_like as e,
+  stringify as f,
   getContext as g,
   root as r,
   safe_not_equal as s,

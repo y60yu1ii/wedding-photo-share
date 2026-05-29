@@ -1,4 +1,4 @@
-import { c as stringify, d as derived, b as store_get, u as unsubscribe_stores } from "../../../../chunks/root.js";
+import { f as stringify, d as derived, c as store_get, u as unsubscribe_stores } from "../../../../chunks/root.js";
 import { p as page } from "../../../../chunks/stores.js";
 import { c as attr } from "../../../../chunks/attributes.js";
 function _page($$renderer, $$props) {
