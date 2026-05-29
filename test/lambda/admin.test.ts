@@ -242,6 +242,27 @@ describe("POST /admin/events (authenticated)", () => {
       expect(mockS3Send).toHaveBeenCalled();
     });
   });
+
+  describe("GET /admin/events/{eventId}/photos (authenticated)", () => {
+    test("returns photos with S3 presigned URLs", async () => {
+      mockSend.mockResolvedValueOnce({
+        Items: [
+          { PK: "PHOTO#1", SK: "METADATA", eventId: "EVENT-1", s3Key: "prod/EVENT-1/PHOTO#1.jpg", nickname: "Alice", status: "pending" }
+        ]
+      });
+
+      const event = {
+        requestContext: { http: { method: "GET", path: "/admin/events/EVENT-1/photos" } },
+        headers: authHeaders(),
+      };
+
+      const result = await handler(event);
+      expect(result.statusCode).toBe(200);
+      const body = JSON.parse(result.body as string);
+      expect(body.photos).toHaveLength(1);
+      expect(body.photos[0].presignedUrl).toBe("https://mock-presigned-url");
+    });
+  });
 });
 
 describe("Unknown routes", () => {

@@ -10,6 +10,7 @@ import {
 } from "@aws-sdk/lib-dynamodb";
 import { SecretsManagerClient, GetSecretValueCommand } from "@aws-sdk/client-secrets-manager";
 import { S3Client, DeleteObjectsCommand, GetObjectCommand } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { SignJWT, jwtVerify } from "jose";
 
 const dynamo = DynamoDBDocumentClient.from(new DynamoDBClient({}));
@@ -153,6 +154,14 @@ async function getEvent(eventId: string) {
   };
 }
 
+async function presignPhoto(s3Key: string): Promise<string> {
+  const cmd = new GetObjectCommand({
+    Bucket: process.env.PHOTO_BUCKET!,
+    Key: s3Key,
+  });
+  return getSignedUrl(s3, cmd, { expiresIn: 900 });
+}
+
 async function listEventPhotos(eventId: string) {
   const resp = await dynamo.send(
     new ScanCommand({
@@ -161,7 +170,13 @@ async function listEventPhotos(eventId: string) {
       ExpressionAttributeValues: { ":eid": eventId },
     })
   );
-  return resp.Items ?? [];
+  const photos = resp.Items ?? [];
+  return Promise.all(
+    photos.map(async (p: any) => ({
+      ...p,
+      presignedUrl: p.s3Key ? await presignPhoto(p.s3Key) : undefined,
+    }))
+  );
 }
 
 // Separate function to get event with actual keys (used only for admin display)
