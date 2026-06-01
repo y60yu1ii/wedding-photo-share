@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, afterEach } from "vitest";
+import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 
 vi.mock("gsap", () => ({
   gsap: {
@@ -12,11 +12,27 @@ vi.mock("gsap", () => ({
 }));
 
 import { gsap } from "gsap";
-import { runTransitionRecipe, getTransitionRecipe, __RECIPES } from "$lib/utils/slideshowGsap";
+import {
+  runTransitionRecipe,
+  getTransitionRecipe,
+  runConfiguredRecipe,
+  __RECIPES,
+  type TransitionRecipe,
+} from "$lib/utils/slideshowGsap";
+
+let originalFadeRecipe: TransitionRecipe | undefined;
 
 describe("slideshowGsap recipe registry", () => {
+  beforeEach(() => {
+    originalFadeRecipe = __RECIPES.get("fade");
+  });
+
   afterEach(() => {
-    __RECIPES.delete("fade");
+    if (originalFadeRecipe) {
+      __RECIPES.set("fade", originalFadeRecipe);
+    } else {
+      __RECIPES.delete("fade");
+    }
   });
 
 
@@ -35,5 +51,51 @@ describe("slideshowGsap recipe registry", () => {
     expect(gsap.killTweensOf).toHaveBeenCalledWith(target);
     expect(recipe).toHaveBeenCalledWith(target, expect.objectContaining({ durationMs: 400 }));
     expect(result).toBeDefined();
+  });
+});
+
+describe("simple recipes", () => {
+  it("fade: gsap.fromTo opacity 0->1", () => {
+    (gsap.fromTo as any).mockClear();
+    const target = document.createElement("div");
+    runConfiguredRecipe("fade", target, { transition: "fade", intervalSeconds: 8, transitionSeconds: 0.5 });
+    expect(gsap.fromTo).toHaveBeenCalledWith(
+      target,
+      { opacity: 0 },
+      expect.objectContaining({ opacity: 1, ease: "power1.out" }),
+    );
+  });
+
+  it("fade-scale: scales 0.95->1 alongside opacity", () => {
+    (gsap.fromTo as any).mockClear();
+    const target = document.createElement("div");
+    runConfiguredRecipe("fade-scale", target, { transition: "fade-scale", intervalSeconds: 8, transitionSeconds: 0.5 });
+    expect(gsap.fromTo).toHaveBeenCalledWith(
+      target,
+      { opacity: 0, scale: 0.95 },
+      expect.objectContaining({ opacity: 1, scale: 1 }),
+    );
+  });
+
+  it("slide: xPercent 100->0", () => {
+    (gsap.fromTo as any).mockClear();
+    const target = document.createElement("div");
+    runConfiguredRecipe("slide", target, { transition: "slide", intervalSeconds: 8, transitionSeconds: 0.5 });
+    expect(gsap.fromTo).toHaveBeenCalledWith(
+      target,
+      { xPercent: 100 },
+      expect.objectContaining({ xPercent: 0 }),
+    );
+  });
+
+  it("fade-soft: opacity 0->1, y 24->0 with power2.out", () => {
+    (gsap.fromTo as any).mockClear();
+    const target = document.createElement("div");
+    runConfiguredRecipe("fade-soft", target, { transition: "fade-soft", intervalSeconds: 8, transitionSeconds: 0.6, transitionConfig: { durationMs: 600, easing: "ease-in-out" } });
+    expect(gsap.fromTo).toHaveBeenCalledWith(
+      target,
+      { opacity: 0, y: 24 },
+      expect.objectContaining({ opacity: 1, y: 0, ease: "power2.inOut", duration: 0.6 }),
+    );
   });
 });
