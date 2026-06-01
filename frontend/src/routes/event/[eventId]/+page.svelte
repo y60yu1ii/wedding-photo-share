@@ -1,9 +1,11 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import { gsap } from "gsap";
+  import { runConfiguredRecipe, bindReducedMotion } from "$lib/utils/slideshowGsap";
+  import Danmaku from "$lib/components/Danmaku.svelte";
   import { page } from "$app/stores";
   import { slideshow, templates } from "$lib/api/client";
   import type { EventTemplate, TemplateLayer } from "$lib/api/types";
-  import { resolveTransitionClass, resolveTransitionConfig } from "$lib/utils/slideshowTransition";
   import { frameTokenToInlineStyle, resolveLayerFrameToken } from "$lib/utils/frameToken";
 
   const eventId = $derived($page.params.eventId ?? "");
@@ -52,8 +54,11 @@
       startTemplatePolling();
     })();
 
+    const context = gsap.context();
+    bindReducedMotion(document.documentElement);
     return () => {
       disposed = true;
+      context.revert();
       if (socket) socket.close();
       if (slideshowInterval) clearInterval(slideshowInterval);
       if (templateRefreshInterval) clearInterval(templateRefreshInterval);
@@ -197,6 +202,10 @@
     const id = `${Date.now()}-${Math.random()}`;
     const item = { id, nickname, greeting, track };
     danmakus.push(item);
+    // The Danmaku component only auto-animates items present at mount.
+    // For danmakus arriving later (WebSocket pushes) we must invoke the
+    // animation API directly so the new item gets a gsap.fromTo tween.
+    danmakuRef?.animateItem(item);
 
     // Free the track after 4 seconds (allows messages to pass clear)
     setTimeout(() => {
@@ -258,13 +267,15 @@
     return frameTokenToInlineStyle(resolveLayerFrameToken(layer.data, template.framePresets ?? []));
   }
 
-  function photoTransitionClass() {
-    return resolveTransitionClass(template?.playback);
-  }
-
-  const transitionDurationMs = $derived(resolveTransitionConfig(template?.playback).durationMs);
-  const transitionEasing = $derived(resolveTransitionConfig(template?.playback).easing);
-  const transitionStaggerMs = $derived(resolveTransitionConfig(template?.playback).staggerMs);
+  let photoEl = $state<HTMLDivElement | undefined>(undefined);
+  let danmakuRef = $state<Danmaku | undefined>(undefined);
+  $effect(() => {
+    if (photoEl && isPresentationMode && template) {
+      gsap.killTweensOf(photoEl);
+      gsap.set(photoEl, { clearProps: "all" });
+      runConfiguredRecipe(template.playback.transition, photoEl, template.playback);
+    }
+  });
 </script>
 
 {#if isPresentationMode && activePhoto}
@@ -280,8 +291,8 @@
     <div class="absolute inset-0 flex items-center justify-center p-4 z-10">
       {#key transitionVersion}
         <div
-          class={`relative w-full h-full max-w-[92vw] max-h-[88vh] ${photoTransitionClass()} rounded-2xl overflow-hidden shadow-2xl border border-white/10 bg-black/40`}
-          style={`--photo-transition-duration:${transitionDurationMs}ms;--photo-transition-easing:${transitionEasing};--photo-transition-stagger:${transitionStaggerMs}ms;`}
+          class="relative w-full h-full max-w-[92vw] max-h-[88vh] rounded-2xl overflow-hidden shadow-2xl border border-white/10 bg-black/40"
+          bind:this={photoEl}
         >
           <div class="absolute inset-0 photo-stage">
             <img
@@ -326,15 +337,7 @@
 
     <!-- 📣 GPU-Accelerated Danmaku Overlay Tracks -->
     <div class="absolute inset-x-0 top-6 bottom-auto h-[350px] z-30 pointer-events-none overflow-hidden">
-      {#each danmakus as d (d.id)}
-        <div
-          class="danmaku-item flex items-center gap-3 px-5 py-2.5 rounded-full shadow-lg border text-white font-medium bg-[#3d2b1f]/80 border-[#d4a373]/40 backdrop-blur-md"
-          style="top: {d.track * 68 + 12}px;"
-        >
-          <span class="text-xs font-semibold text-[#d4a373] bg-[#fdf8f3]/10 px-2 py-0.5 rounded-full">💬 {d.nickname}</span>
-          <span class="text-base tracking-wide">{d.greeting}</span>
-        </div>
-      {/each}
+      <Danmaku items={danmakus} bind:this={danmakuRef} />
     </div>
 
     <!-- Floating Controller Bar -->
@@ -415,96 +418,6 @@
 {/if}
 
 <style>
-  @keyframes photo-fade {
-    from {
-      opacity: 0;
-      transform: scale(1.01);
-    }
-    to {
-      opacity: 1;
-      transform: scale(1);
-    }
-  }
-
-  @keyframes photo-fade-scale {
-    from {
-      opacity: 0;
-      transform: scale(1.05);
-    }
-    to {
-      opacity: 1;
-      transform: scale(1);
-    }
-  }
-
-  @keyframes photo-slide {
-    from {
-      opacity: 0;
-      transform: translateX(2.5%) scale(1.01);
-    }
-    to {
-      opacity: 1;
-      transform: translateX(0) scale(1);
-    }
-  }
-
-  @keyframes photo-fade-soft {
-    from {
-      opacity: 0;
-      transform: scale(1.015);
-      filter: blur(4px);
-    }
-    to {
-      opacity: 1;
-      transform: scale(1);
-      filter: blur(0);
-    }
-  }
-
-  @keyframes photo-slide-parallax {
-    from {
-      opacity: 0;
-      transform: translateX(3.5%) scale(1.03);
-    }
-    to {
-      opacity: 1;
-      transform: translateX(0) scale(1);
-    }
-  }
-
-  @keyframes photo-stack-flip {
-    from {
-      opacity: 0;
-      transform: perspective(1400px) rotateY(14deg) rotateX(1.5deg) translateY(1%);
-    }
-    to {
-      opacity: 1;
-      transform: perspective(1400px) rotateY(0) rotateX(0) translateY(0);
-    }
-  }
-
-  @keyframes photo-kenburns {
-    from {
-      opacity: 0;
-      transform: scale(1.14) translate(-2.2%, -1.4%);
-    }
-    to {
-      opacity: 1;
-      transform: scale(1.05) translate(0, 0);
-    }
-  }
-
-  @keyframes photo-ribbon-flow {
-    from {
-      opacity: 0;
-      transform: translateX(-3.5%) skewX(-2deg) scale(1.02);
-    }
-    to {
-      opacity: 1;
-      transform: translateX(0) skewX(0) scale(1);
-    }
-  }
-
   @keyframes photo-meta-rise {
     from {
       opacity: 0;
@@ -516,82 +429,17 @@
     }
   }
 
-  .photo-fade {
-    animation: photo-fade var(--photo-transition-duration, 550ms) var(--photo-transition-easing, ease) both;
-  }
-
-  .photo-fade-scale {
-    animation: photo-fade-scale var(--photo-transition-duration, 550ms) var(--photo-transition-easing, ease) both;
-  }
-
-  .photo-slide {
-    animation: photo-slide var(--photo-transition-duration, 550ms) var(--photo-transition-easing, ease) both;
-  }
-
-  .photo-fade-soft {
-    animation: photo-fade-soft var(--photo-transition-duration, 700ms) ease-out both;
-  }
-
-  .photo-slide-parallax {
-    animation: photo-slide-parallax var(--photo-transition-duration, 700ms) var(--photo-transition-easing, ease-out) both;
-  }
-
-  .photo-slide-parallax .photo-main-image {
-    transform-origin: center center;
-    animation: photo-kenburns calc(var(--photo-transition-duration, 700ms) + 1000ms) ease-out both;
-  }
-
-  .photo-stack-flip {
-    transform-style: preserve-3d;
-    animation: photo-stack-flip var(--photo-transition-duration, 700ms) cubic-bezier(0.18, 0.9, 0.22, 1) both;
-  }
-
-  .photo-kenburns .photo-main-image {
-    transform-origin: center center;
-    animation: photo-kenburns calc(var(--photo-transition-duration, 700ms) + 1800ms) var(--photo-transition-easing, ease-out) both;
-  }
-
-  .photo-ribbon-flow {
-    animation: photo-ribbon-flow var(--photo-transition-duration, 760ms) cubic-bezier(0.25, 0.8, 0.25, 1) both;
-  }
-
   .photo-meta {
     animation: photo-meta-rise calc(var(--photo-transition-duration, 550ms) * 0.7) ease-out both;
     animation-delay: var(--photo-transition-stagger, 0ms);
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .photo-fade,
-    .photo-fade-scale,
-    .photo-slide,
-    .photo-fade-soft,
-    .photo-slide-parallax,
-    .photo-stack-flip,
-    .photo-ribbon-flow,
-    .photo-main-image,
     .photo-meta {
       animation-duration: 1ms !important;
       animation-delay: 0ms !important;
       transform: none !important;
       filter: none !important;
     }
-  }
-
-  @keyframes danmaku-scroll {
-    from {
-      transform: translateX(100vw);
-    }
-    to {
-      transform: translateX(-100%);
-    }
-  }
-
-  .danmaku-item {
-    position: absolute;
-    white-space: nowrap;
-    animation: danmaku-scroll 9s linear forwards;
-    will-change: transform;
-    pointer-events: none;
-    z-index: 100;
   }
 </style>

@@ -10,7 +10,7 @@
 
   const tweens: gsap.core.Tween[] = [];
 
-  function animateItem(item: DanmakuItem) {
+  export function animateItem(item: DanmakuItem) {
     const el = document.querySelector(`[data-danmaku-id="${item.id}"]`);
     if (!el) return;
     gsap.killTweensOf(el);
