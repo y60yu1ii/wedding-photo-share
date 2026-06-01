@@ -130,3 +130,28 @@ registerRecipe("kenburns", (target, _config) => {
 registerRecipe("ribbon-flow", (target, config) =>
   applyRecipe(target, config, { xPercent: 30 }, { xPercent: -30, ease: "elastic.out(1, 0.5)" }),
 );
+
+type MatchMediaHandle = {
+  add: (query: string, fn: (self: gsap.MatchMedia) => void) => MatchMediaHandle;
+  revert: () => void;
+};
+
+export function bindReducedMotion(
+  target: HTMLElement | HTMLElement[],
+): MatchMediaHandle {
+  // The outer gsap.matchMedia call is already scoped to the reduced-motion
+  // query, so the callback runs only when the user prefers reduced motion.
+  // An inner mm.add with the same query would be redundant.
+  // Cast: gsap's published type signature is `matchMedia(scope?)`, but the
+  // runtime supports the `(query, callback)` convenience overload.
+  return (gsap.matchMedia as any)(
+    "(prefers-reduced-motion: reduce)",
+    () => {
+      gsap.fromTo(
+        target as gsap.TweenTarget,
+        { opacity: 0 },
+        { opacity: 1, duration: 0.2, ease: "none" },
+      );
+    },
+  ) as MatchMediaHandle;
+}

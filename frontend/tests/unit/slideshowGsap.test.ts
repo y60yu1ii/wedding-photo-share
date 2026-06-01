@@ -16,6 +16,7 @@ import {
   runTransitionRecipe,
   getTransitionRecipe,
   runConfiguredRecipe,
+  bindReducedMotion,
   __RECIPES,
   type TransitionRecipe,
 } from "$lib/utils/slideshowGsap";
@@ -159,3 +160,38 @@ describe("composed recipes", () => {
     );
   });
 });
+
+describe("reduced-motion binding", () => {
+  it("creates a gsap.matchMedia binding with the reduced-motion query", () => {
+    (gsap.matchMedia as any).mockClear();
+    const ctx = gsap.matchMedia as unknown as ReturnType<typeof vi.fn>;
+    (ctx as any).mockReturnValue({ add: vi.fn(), revert: vi.fn() });
+    importTarget().bindReducedMotion();
+    expect(gsap.matchMedia).toHaveBeenCalledWith(
+      "(prefers-reduced-motion: reduce)",
+      expect.any(Function),
+    );
+  });
+
+  it("reduced-motion branch calls fromTo with opacity-only vars at <=200ms", () => {
+    (gsap.fromTo as any).mockClear();
+    let captured: ((self: any) => void) | undefined;
+    (gsap.matchMedia as any).mockImplementation((_q: string, cb: any) => {
+      captured = cb;
+      return { add: vi.fn(), revert: vi.fn() };
+    });
+    importTarget().bindReducedMotion();
+    captured?.({ isTouch: false });
+    expect(gsap.fromTo).toHaveBeenCalled();
+    const call = (gsap.fromTo as any).mock.calls[0];
+    expect(call[1]).toEqual({ opacity: 0 });
+    expect(call[2]).toMatchObject({ opacity: 1 });
+    expect(call[2].duration).toBeLessThanOrEqual(0.2);
+  });
+});
+
+function importTarget() {
+  return {
+    bindReducedMotion: () => bindReducedMotion(document.createElement("div")),
+  };
+}
