@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi, afterEach } from "vitest";
 
 vi.mock("gsap", () => ({
   gsap: {
@@ -12,9 +12,13 @@ vi.mock("gsap", () => ({
 }));
 
 import { gsap } from "gsap";
-import { runTransitionRecipe, getTransitionRecipe } from "$lib/utils/slideshowGsap";
+import { runTransitionRecipe, getTransitionRecipe, __RECIPES } from "$lib/utils/slideshowGsap";
 
 describe("slideshowGsap recipe registry", () => {
+  afterEach(() => {
+    __RECIPES.delete("fade");
+  });
+
 
   it("returns null for unknown transition", () => {
     expect(getTransitionRecipe("nope" as any)).toBeNull();
@@ -24,7 +28,7 @@ describe("slideshowGsap recipe registry", () => {
     (gsap.killTweensOf as any).mockClear();
     const target = document.createElement("div");
     const recipe = vi.fn().mockReturnValue({ kill: vi.fn() });
-    (runTransitionRecipe as any).__test.set("fade", recipe);
+    __RECIPES.set("fade", recipe);
     const result = runTransitionRecipe("fade", target, {
       durationMs: 400, easing: "ease", staggerMs: 0,
     });

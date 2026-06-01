@@ -36,5 +36,5 @@ export function runConfiguredRecipe(
   return runTransitionRecipe(transition, target, resolveTransitionConfig(playback));
 }
 
-// Internal test handle — not exported via the public surface
-(runTransitionRecipe as any).__test = RECIPES;
+/** @internal — exposed for unit tests only. */
+export const __RECIPES = RECIPES;
