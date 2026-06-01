@@ -3,6 +3,9 @@
   import { gsap } from "gsap";
 
   type DanmakuItem = { id: string; nickname: string; greeting: string; track: number };
+  // Mount-time only: items appended after onMount will not auto-animate.
+  // The caller must invoke animateItem() for reactive items (Task 7 will
+  // wire the public event page to call it for new danmaku arrivals).
   export let items: DanmakuItem[] = [];
 
   const tweens: gsap.core.Tween[] = [];
