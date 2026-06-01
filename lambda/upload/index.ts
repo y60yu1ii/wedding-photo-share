@@ -74,23 +74,29 @@ function isValidNickname(nickname: string): boolean {
 }
 
 async function getRepresentativePhotoId(eventId: string, guestKey?: string, nickname?: string): Promise<string | null> {
-  const expressionValues: Record<string, string> = { ":eid": eventId };
-  const filterParts = ["eventId = :eid", "attribute_exists(confirmedAt)"];
-
-  if (guestKey) {
-    expressionValues[":gk"] = guestKey;
-    filterParts.push("guestKey = :gk");
-  } else if (nickname) {
-    expressionValues[":nickname"] = nickname;
-    filterParts.push("nickname = :nickname");
-  }
+  const queryInput = nickname
+    ? {
+        TableName: process.env.PHOTOS_TABLE!,
+        IndexName: "eventId-nickname-index",
+        KeyConditionExpression: "eventId = :eid AND nickname = :nickname",
+        FilterExpression: "attribute_exists(confirmedAt)",
+        ExpressionAttributeValues: {
+          ":eid": eventId,
+          ":nickname": nickname,
+        },
+      }
+    : {
+        TableName: process.env.PHOTOS_TABLE!,
+        IndexName: "eventId-status-index",
+        KeyConditionExpression: "eventId = :eid",
+        FilterExpression: "attribute_exists(confirmedAt)",
+        ExpressionAttributeValues: {
+          ":eid": eventId,
+        },
+      };
 
   const result = await dynamo.send(
-    new ScanCommand({
-      TableName: process.env.PHOTOS_TABLE!,
-      FilterExpression: filterParts.join(" AND "),
-      ExpressionAttributeValues: expressionValues,
-    })
+    new QueryCommand(queryInput)
   );
 
   const guestPhotos = (result.Items ?? []).sort((a, b) =>

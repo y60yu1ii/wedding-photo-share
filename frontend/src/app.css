@@ -45,17 +45,21 @@ body {
   }
 }
 
-@keyframes wall-butterfly-fly {
-  0% {
-    opacity: 0;
-    transform: translate3d(-10vw, 12px, 0) scale(var(--scale, 1)) rotate(var(--rotation, 0deg));
+@keyframes wall-butterfly-flutter {
+  0%, 100% {
+    transform: scale(var(--scale, 1)) rotate(var(--rotation, 0deg)) translateY(0);
   }
-  10% {
-    opacity: 1;
+  50% {
+    transform: scale(calc(var(--scale, 1) * 1.05)) rotate(calc(var(--rotation, 0deg) + 8deg)) translateY(-2px);
   }
-  100% {
-    opacity: 0;
-    transform: translate3d(110vw, -16px, 0) scale(var(--scale, 1)) rotate(calc(var(--rotation, 0deg) + 18deg));
+}
+
+@keyframes wall-plane-tilt {
+  0%, 100% {
+    transform: scale(var(--scale, 1)) rotate(calc(var(--rotation, 0deg) * 0.7));
+  }
+  50% {
+    transform: scale(var(--scale, 1)) rotate(calc(var(--rotation, 0deg) * 1.25));
   }
 }
 
@@ -90,15 +94,20 @@ body {
   animation: wall-pin-pulse 3.2s ease-in-out infinite;
 }
 
-.wall-accent {
-  animation: wall-butterfly-fly var(--duration, 8s) linear var(--delay, 0s) infinite;
-}
-
 .wall-butterfly {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   font-size: 1.8rem;
   filter: drop-shadow(0 6px 10px rgba(61, 43, 31, 0.18));
-  transform: scale(var(--scale, 1));
+  animation: wall-butterfly-flutter 1.45s ease-in-out infinite;
+}
+
+.wall-plane {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.55rem;
+  filter: drop-shadow(0 6px 10px rgba(61, 43, 31, 0.2));
+  animation: wall-plane-tilt 1.8s ease-in-out infinite;
 }

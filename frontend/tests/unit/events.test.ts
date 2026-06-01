@@ -35,13 +35,12 @@ describe("events API", () => {
       })
     );
     await events.create("婚禮B", "2026-06-01");
-    expect(mockFetch).toHaveBeenCalledWith(
-      expect.stringContaining("/admin/events"),
-      expect.objectContaining({
-        method: "POST",
-        headers: expect.objectContaining({ Authorization: "Bearer valid-token" }),
-        body: JSON.stringify({ name: "婚禮B", date: "2026-06-01" }),
-      })
-    );
+    const lastCall = mockFetch.mock.calls.at(-1);
+    expect(lastCall?.[0]).toContain("/admin/events");
+    expect(lastCall?.[1]).toMatchObject({
+      method: "POST",
+      headers: expect.objectContaining({ Authorization: "Bearer valid-token" }),
+      body: JSON.stringify({ name: "婚禮B", date: "2026-06-01", requiresReview: true }),
+    });
   });
 });

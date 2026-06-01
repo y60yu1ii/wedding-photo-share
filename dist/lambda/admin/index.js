@@ -9,6 +9,7 @@ const s3_request_presigner_1 = require("@aws-sdk/s3-request-presigner");
 const client_apigatewaymanagementapi_1 = require("@aws-sdk/client-apigatewaymanagementapi");
 const jose_1 = require("jose");
 const template_1 = require("../template");
+const pagination_1 = require("../pagination");
 const dynamo = lib_dynamodb_1.DynamoDBDocumentClient.from(new client_dynamodb_1.DynamoDBClient({}));
 const secrets = new client_secrets_manager_1.SecretsManagerClient({});
 const s3 = new client_s3_1.S3Client({});
@@ -224,17 +225,24 @@ async function presignPhoto(s3Key) {
     });
     return (0, s3_request_presigner_1.getSignedUrl)(s3, cmd, { expiresIn: 900 });
 }
-async function listEventPhotos(eventId) {
-    const resp = await dynamo.send(new lib_dynamodb_1.ScanCommand({
+async function listEventPhotos(eventId, limit = 40, cursor) {
+    const resp = await dynamo.send(new lib_dynamodb_1.QueryCommand({
         TableName: process.env.PHOTOS_TABLE,
-        FilterExpression: "eventId = :eid",
+        IndexName: "eventId-status-index",
+        KeyConditionExpression: "eventId = :eid",
         ExpressionAttributeValues: { ":eid": eventId },
+        Limit: limit,
+        ExclusiveStartKey: (0, pagination_1.decodeCursor)(cursor),
     }));
     const photos = resp.Items ?? [];
-    return Promise.all(photos.map(async (p) => ({
+    const withUrls = await Promise.all(photos.map(async (p) => ({
         ...p,
         presignedUrl: p.s3Key ? await presignPhoto(p.s3Key) : undefined,
     })));
+    return {
+        photos: withUrls,
+        nextCursor: (0, pagination_1.encodeCursor)(resp.LastEvaluatedKey),
+    };
 }
 // Separate function to get event with actual keys (used only for admin display)
 async function getEventWithKeys(eventId) {
@@ -599,8 +607,9 @@ async function handler(event) {
         // GET /admin/events/{eventId}/photos
         if (path.match(/^\/admin\/events\/[^/]+\/photos$/) && method === "GET") {
             const eventId = decodeURIComponent(path.split("/")[3]);
-            const photos = await listEventPhotos(eventId);
-            return res(200, { photos });
+            const limit = Math.max(1, Math.min(Number(event.queryStringParameters?.limit ?? 40), 100));
+            const result = await listEventPhotos(eventId, limit, event.queryStringParameters?.cursor);
+            return res(200, result);
         }
         return res(404, { error: "Not found" });
     }

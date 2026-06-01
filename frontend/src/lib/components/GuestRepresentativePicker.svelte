@@ -28,6 +28,8 @@
         <img
           src={photo.presignedUrl ?? `https://picsum.photos/seed/${photo.PK}/160/160`}
           alt={photo.nickname}
+          loading="lazy"
+          decoding="async"
           class="h-20 w-20 flex-none rounded-xl object-cover"
         />
         <div class="min-w-0 flex-1">

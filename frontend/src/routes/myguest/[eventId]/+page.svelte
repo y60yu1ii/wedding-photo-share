@@ -13,6 +13,7 @@
   let guestKey = $state("");
   let searched = $state(false);
   let selectedPhotoId = $state("");
+  let loadingMore = $state(false);
 
   onMount(async () => {
     const q = new URLSearchParams(window.location.search);
@@ -33,17 +34,40 @@
   async function search() {
     if (!nickname.trim()) return;
     loading = true;
+    loadingMore = false;
     try {
-      photos = guestKey.trim()
-        ? await myguest.photos(eventId, guestKey.trim(), nickname.trim())
-        : await myguest.photos(eventId, nickname.trim());
+      const firstPage = guestKey.trim()
+        ? await myguest.photosPage(eventId, guestKey.trim(), nickname.trim())
+        : await myguest.photosPage(eventId, nickname.trim());
+      photos = sortByCreatedAtDesc(firstPage.photos ?? []);
       searched = true;
       syncSelectedPhotoId();
+      loadingMore = !!firstPage.nextCursor;
+      void loadMorePhotos(firstPage.nextCursor);
     } catch {
       // no photos yet
     } finally {
       loading = false;
     }
+  }
+
+  async function loadMorePhotos(cursor?: string) {
+    let nextCursor = cursor;
+    while (nextCursor) {
+      const page = guestKey.trim()
+        ? await myguest.photosPage(eventId, guestKey.trim(), nickname.trim(), 40, nextCursor)
+        : await myguest.photosPage(eventId, nickname.trim(), undefined, 40, nextCursor);
+      photos = sortByCreatedAtDesc([...photos, ...(page.photos ?? [])]);
+      nextCursor = page.nextCursor;
+      loadingMore = !!nextCursor;
+    }
+    loadingMore = false;
+  }
+
+  function sortByCreatedAtDesc(list: any[]) {
+    return [...list].sort((a, b) =>
+      (b.confirmedAt ?? b.uploadedAt ?? b.createdAt ?? "").localeCompare(a.confirmedAt ?? a.uploadedAt ?? a.createdAt ?? "")
+    );
   }
 
   async function setRepresentative(photoId: string) {
@@ -100,6 +124,9 @@
     </div>
   {:else}
     <div class="bg-white rounded-2xl p-4 shadow-sm border border-[#e8d5c4] mb-4">
+      {#if loadingMore}
+        <p class="mb-2 text-center text-xs text-[#8b7355]">正在分批載入更多照片...</p>
+      {/if}
       <p class="text-xs font-semibold text-[#8b7355] mb-2">我的簽到照</p>
       {#if photos.length > 0}
         <div class="mb-4">
@@ -118,6 +145,8 @@
             <img
               src={photo.presignedUrl ?? `https://picsum.photos/seed/${photo.PK}/200/200`}
               alt={photo.nickname}
+              loading="lazy"
+              decoding="async"
               class="w-full h-full object-cover rounded-lg"
             />
             <div class="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-xs text-center py-0.5 truncate px-1">

@@ -89,6 +89,18 @@
       "data": "PhotoBucketName"
     }
   ],
+  "/WeddingPhotoStack/FrontendBucketName": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "FrontendBucketName"
+    }
+  ],
+  "/WeddingPhotoStack/FrontendDistributionId": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "FrontendDistributionId"
+    }
+  ],
   "/WeddingPhotoStack/RestApiUrl": [
     {
       "type": "aws:cdk:logicalId",

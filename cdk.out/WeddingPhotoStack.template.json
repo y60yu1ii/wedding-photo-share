@@ -4365,7 +4365,21 @@
      "Ref": "WebSocketApi"
     },
     "AuthorizationType": "NONE",
-    "RouteKey": "$connect"
+    "RouteKey": "$connect",
+    "Target": {
+     "Fn::Join": [
+      "",
+      [
+       "integrations/",
+       {
+        "Fn::GetAtt": [
+         "WsLambdaIntegration",
+         "IntegrationId"
+        ]
+       }
+      ]
+     ]
+    }
    },
    "Metadata": {
     "aws:cdk:path": "WeddingPhotoStack/WsConnectRoute"
@@ -4378,7 +4392,21 @@
      "Ref": "WebSocketApi"
     },
     "AuthorizationType": "NONE",
-    "RouteKey": "$disconnect"
+    "RouteKey": "$disconnect",
+    "Target": {
+     "Fn::Join": [
+      "",
+      [
+       "integrations/",
+       {
+        "Fn::GetAtt": [
+         "WsLambdaIntegration",
+         "IntegrationId"
+        ]
+       }
+      ]
+     ]
+    }
    },
    "Metadata": {
     "aws:cdk:path": "WeddingPhotoStack/WsDisconnectRoute"
@@ -4942,7 +4970,7 @@
      "cdk-hnb659fds-assets-127537619055-ap-northeast-1"
     ],
     "SourceObjectKeys": [
-     "b3676e35508dfb696a42ca5981707270e2bdc57827d7c8726be74989fbb006c3.zip"
+     "63f7564ae2a0db283c192aae7fc42dd7e8a1efbd978bd2f310b92eec23fe7a7f.zip"
     ],
     "DestinationBucketName": {
      "Ref": "FrontendBucketEFE2E19C"
@@ -5273,6 +5301,22 @@
    },
    "Export": {
     "Name": "wedding-photo-bucket-prod"
+   }
+  },
+  "FrontendBucketName": {
+   "Value": {
+    "Ref": "FrontendBucketEFE2E19C"
+   },
+   "Export": {
+    "Name": "wedding-photo-frontend-bucket-prod"
+   }
+  },
+  "FrontendDistributionId": {
+   "Value": {
+    "Ref": "CloudFrontDist239A6E31"
+   },
+   "Export": {
+    "Name": "wedding-photo-frontend-distribution-prod"
    }
   },
   "RestApiUrl": {

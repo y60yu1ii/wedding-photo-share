@@ -248,5 +248,6 @@ describe("POST /upload/confirm", () => {
     expect(updateCall.input.UpdateExpression).toContain("representativePhotoId = :representativePhotoId");
     expect(updateCall.input.ExpressionAttributeValues[":guestKey"]).toBe("guest-abc");
     expect(updateCall.input.ExpressionAttributeValues[":representativePhotoId"]).toBe("PHOTO#existing");
+    expect(mockDdbSend.mock.calls[1][0].input.IndexName).toBe("eventId-nickname-index");
   });
 });

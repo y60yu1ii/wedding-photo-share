@@ -30,6 +30,8 @@
     <img
       src={card.presignedUrl}
       alt={card.nickname}
+      loading="lazy"
+      decoding="async"
       class="wall-card-image aspect-[3/4] w-full object-cover"
     />
   </div>

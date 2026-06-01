@@ -3,6 +3,8 @@
   import { page } from "$app/stores";
   import { slideshow, templates } from "$lib/api/client";
   import type { EventTemplate, TemplateLayer } from "$lib/api/types";
+  import { resolveTransitionClass, resolveTransitionConfig } from "$lib/utils/slideshowTransition";
+  import { frameTokenToInlineStyle, resolveLayerFrameToken } from "$lib/utils/frameToken";
 
   const eventId = $derived($page.params.eventId ?? "");
   const wsUrl = import.meta.env.VITE_WS_URL;
@@ -11,6 +13,7 @@
   let photos = $state<any[]>([]);
   let template = $state<EventTemplate | null>(null);
   let loading = $state(true);
+  let loadingMore = $state(false);
   
   // Slideshow Modes
   let isPresentationMode = $state(false);
@@ -60,13 +63,33 @@
 
   async function loadSlideshowData() {
     const [photoResult, templateResult] = await Promise.all([
-      slideshow.photos(eventId),
+      slideshow.photosPage(eventId),
       templates.slideshow(eventId).catch(() => null),
     ]);
     event = photoResult.event;
-    photos = photoResult.photos;
+    photos = sortPhotosAsc(photoResult.photos);
     template = templateResult?.template ?? null;
     restartSlideshowInterval();
+    loadingMore = !!photoResult.nextCursor;
+    void loadMorePhotos(photoResult.nextCursor);
+  }
+
+  async function loadMorePhotos(cursor?: string) {
+    let nextCursor = cursor;
+    while (nextCursor) {
+      const currentPhotoId = activePhoto?.PK;
+      const page = await slideshow.photosPage(eventId, 50, nextCursor);
+      photos = sortPhotosAsc([...photos, ...(page.photos ?? [])]);
+      if (currentPhotoId) {
+        const nextIndex = photos.findIndex((photo) => photo.PK === currentPhotoId);
+        if (nextIndex >= 0) {
+          activeIndex = nextIndex;
+        }
+      }
+      nextCursor = page.nextCursor;
+      loadingMore = !!nextCursor;
+    }
+    loadingMore = false;
   }
 
   async function refreshTemplate() {
@@ -91,7 +114,7 @@
   function connectWebSocket() {
     if (!wsUrl) return;
     try {
-      socket = new WebSocket(wsUrl);
+      socket = new WebSocket(`${wsUrl}?eventId=${encodeURIComponent(eventId)}`);
 
       socket.onopen = () => {
         // Register connection for this event
@@ -109,7 +132,8 @@
             presignedUrl: data.presignedUrl,
             nickname: data.nickname,
             greeting: data.greeting,
-            status: "approved"
+            status: "approved",
+            createdAt: data.uploadedAt ?? new Date().toISOString(),
           };
           
           // Prepend new photo to list
@@ -210,6 +234,12 @@
 
   const activePhoto = $derived(photos[activeIndex] || null);
 
+  function sortPhotosAsc(list: any[]) {
+    return [...list].sort((a, b) =>
+      (a.confirmedAt ?? a.uploadedAt ?? a.createdAt ?? "").localeCompare(b.confirmedAt ?? b.uploadedAt ?? b.createdAt ?? "")
+    );
+  }
+
   function layerStyle(layer: TemplateLayer) {
     if (!template) return "";
     const widthPct = (layer.width / template.canvas.width) * 100;
@@ -223,13 +253,18 @@
     return template?.assets.find((asset) => asset.assetId === layer.data.assetId || asset.key === layer.data.assetKey)?.previewUrl;
   }
 
-  function photoTransitionClass() {
-    return template?.playback.transition === "slide"
-      ? "photo-slide"
-      : template?.playback.transition === "fade-scale"
-        ? "photo-fade-scale"
-        : "photo-fade";
+  function frameStyle(layer: TemplateLayer) {
+    if (!template) return "";
+    return frameTokenToInlineStyle(resolveLayerFrameToken(layer.data, template.framePresets ?? []));
   }
+
+  function photoTransitionClass() {
+    return resolveTransitionClass(template?.playback);
+  }
+
+  const transitionDurationMs = $derived(resolveTransitionConfig(template?.playback).durationMs);
+  const transitionEasing = $derived(resolveTransitionConfig(template?.playback).easing);
+  const transitionStaggerMs = $derived(resolveTransitionConfig(template?.playback).staggerMs);
 </script>
 
 {#if isPresentationMode && activePhoto}
@@ -238,18 +273,22 @@
     
     <!-- Blur Backdrop Background -->
     <div class="absolute inset-0 w-full h-full opacity-35 filter blur-2xl scale-110 pointer-events-none transition-all duration-1000">
-      <img src={activePhoto.presignedUrl} alt="backdrop" class="w-full h-full object-cover" />
+      <img src={activePhoto.presignedUrl} alt="backdrop" decoding="async" class="w-full h-full object-cover" />
     </div>
 
     <!-- Active Fullscreen Photo -->
     <div class="absolute inset-0 flex items-center justify-center p-4 z-10">
       {#key transitionVersion}
-        <div class={`relative w-full h-full max-w-[92vw] max-h-[88vh] ${photoTransitionClass()} rounded-2xl overflow-hidden shadow-2xl border border-white/10 bg-black/40`}>
-          <div class="absolute inset-0">
+        <div
+          class={`relative w-full h-full max-w-[92vw] max-h-[88vh] ${photoTransitionClass()} rounded-2xl overflow-hidden shadow-2xl border border-white/10 bg-black/40`}
+          style={`--photo-transition-duration:${transitionDurationMs}ms;--photo-transition-easing:${transitionEasing};--photo-transition-stagger:${transitionStaggerMs}ms;`}
+        >
+          <div class="absolute inset-0 photo-stage">
             <img
               src={activePhoto.presignedUrl}
               alt={activePhoto.nickname}
-              class="w-full h-full object-cover opacity-80"
+              decoding="async"
+              class="w-full h-full object-cover opacity-80 photo-main-image"
             />
             <div class="absolute inset-0 bg-gradient-to-t from-black/55 via-transparent to-black/10"></div>
           </div>
@@ -267,7 +306,7 @@
                       </div>
                     </div>
                   {:else}
-                    <div class="w-full h-full border-2 border-dashed rounded-[inherit]" style={`border-color:${layer.data.borderColor ?? "#fff"};border-width:${layer.data.borderWidth ?? 10}px;border-radius:${layer.data.borderRadius ?? 28}px; background:${layer.data.backgroundColor ?? "rgba(255,255,255,0.06)"};`}></div>
+                    <div class="w-full h-full rounded-[inherit]" style={frameStyle(layer)}></div>
                   {/if}
                 </div>
               {/each}
@@ -275,7 +314,7 @@
           {/if}
 
           <!-- Contributor Info bar -->
-          <div class="absolute left-0 right-0 bottom-0 p-4 bg-gradient-to-t from-black/80 via-black/45 to-transparent text-white text-center">
+          <div class="absolute left-0 right-0 bottom-0 p-4 bg-gradient-to-t from-black/80 via-black/45 to-transparent text-white text-center photo-meta">
             <p class="text-sm font-semibold tracking-wide text-[#d4a373]">👤 賓客 {activePhoto.nickname} 上傳分享</p>
             {#if activePhoto.greeting}
               <p class="text-lg font-medium mt-1 text-[#fdf8f3] tracking-wider leading-relaxed">「 {activePhoto.greeting} 」</p>
@@ -351,6 +390,9 @@
         </p>
       </div>
     {:else}
+      {#if loadingMore}
+        <p class="mb-3 text-center text-xs text-[#8b7355]">正在分批預載更多照片...</p>
+      {/if}
       <div class="bg-white rounded-2xl p-4 shadow-sm border border-[#e8d5c4]">
         <h2 class="text-xs font-bold text-[#8b7355] mb-3 uppercase tracking-wider">相片牆 ({photos.length})</h2>
         <div class="grid grid-cols-3 gap-1.5">
@@ -406,16 +448,133 @@
     }
   }
 
+  @keyframes photo-fade-soft {
+    from {
+      opacity: 0;
+      transform: scale(1.015);
+      filter: blur(4px);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+      filter: blur(0);
+    }
+  }
+
+  @keyframes photo-slide-parallax {
+    from {
+      opacity: 0;
+      transform: translateX(3.5%) scale(1.03);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0) scale(1);
+    }
+  }
+
+  @keyframes photo-stack-flip {
+    from {
+      opacity: 0;
+      transform: perspective(1400px) rotateY(14deg) rotateX(1.5deg) translateY(1%);
+    }
+    to {
+      opacity: 1;
+      transform: perspective(1400px) rotateY(0) rotateX(0) translateY(0);
+    }
+  }
+
+  @keyframes photo-kenburns {
+    from {
+      opacity: 0;
+      transform: scale(1.14) translate(-2.2%, -1.4%);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1.05) translate(0, 0);
+    }
+  }
+
+  @keyframes photo-ribbon-flow {
+    from {
+      opacity: 0;
+      transform: translateX(-3.5%) skewX(-2deg) scale(1.02);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0) skewX(0) scale(1);
+    }
+  }
+
+  @keyframes photo-meta-rise {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
   .photo-fade {
-    animation: photo-fade 0.55s ease both;
+    animation: photo-fade var(--photo-transition-duration, 550ms) var(--photo-transition-easing, ease) both;
   }
 
   .photo-fade-scale {
-    animation: photo-fade-scale 0.55s ease both;
+    animation: photo-fade-scale var(--photo-transition-duration, 550ms) var(--photo-transition-easing, ease) both;
   }
 
   .photo-slide {
-    animation: photo-slide 0.55s ease both;
+    animation: photo-slide var(--photo-transition-duration, 550ms) var(--photo-transition-easing, ease) both;
+  }
+
+  .photo-fade-soft {
+    animation: photo-fade-soft var(--photo-transition-duration, 700ms) ease-out both;
+  }
+
+  .photo-slide-parallax {
+    animation: photo-slide-parallax var(--photo-transition-duration, 700ms) var(--photo-transition-easing, ease-out) both;
+  }
+
+  .photo-slide-parallax .photo-main-image {
+    transform-origin: center center;
+    animation: photo-kenburns calc(var(--photo-transition-duration, 700ms) + 1000ms) ease-out both;
+  }
+
+  .photo-stack-flip {
+    transform-style: preserve-3d;
+    animation: photo-stack-flip var(--photo-transition-duration, 700ms) cubic-bezier(0.18, 0.9, 0.22, 1) both;
+  }
+
+  .photo-kenburns .photo-main-image {
+    transform-origin: center center;
+    animation: photo-kenburns calc(var(--photo-transition-duration, 700ms) + 1800ms) var(--photo-transition-easing, ease-out) both;
+  }
+
+  .photo-ribbon-flow {
+    animation: photo-ribbon-flow var(--photo-transition-duration, 760ms) cubic-bezier(0.25, 0.8, 0.25, 1) both;
+  }
+
+  .photo-meta {
+    animation: photo-meta-rise calc(var(--photo-transition-duration, 550ms) * 0.7) ease-out both;
+    animation-delay: var(--photo-transition-stagger, 0ms);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .photo-fade,
+    .photo-fade-scale,
+    .photo-slide,
+    .photo-fade-soft,
+    .photo-slide-parallax,
+    .photo-stack-flip,
+    .photo-ribbon-flow,
+    .photo-main-image,
+    .photo-meta {
+      animation-duration: 1ms !important;
+      animation-delay: 0ms !important;
+      transform: none !important;
+      filter: none !important;
+    }
   }
 
   @keyframes danmaku-scroll {

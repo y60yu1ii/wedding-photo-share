@@ -24,10 +24,11 @@ jest.mock("@aws-sdk/s3-request-presigner", () => ({
   getSignedUrl: (...args: any[]) => mockGetSignedUrl(...args),
 }));
 
-import { handler } from "../../lambda/wall/index";
+import { handler, __resetWallCache } from "../../lambda/wall/index";
 
 beforeEach(() => {
   jest.clearAllMocks();
+  __resetWallCache();
   process.env.EVENTS_TABLE = "events";
   process.env.PHOTOS_TABLE = "photos";
   process.env.PHOTO_BUCKET = "bucket";
@@ -89,6 +90,8 @@ describe("GET /wall/photos", () => {
     expect(body.photos).toHaveLength(2);
     expect(body.photos.map((photo: any) => photo.PK)).toEqual(["PHOTO#1", "PHOTO#3"]);
     expect(body.photos[0].presignedUrl).toBe("https://signed-wall-url");
+    expect(body.cards).toHaveLength(2);
+    expect(body.cards[0].photoId).toBe("PHOTO#1");
   });
 
   test("falls back to normalized nickname when guestKey is missing", async () => {
@@ -128,7 +131,7 @@ describe("GET /wall/photos", () => {
 
     expect(result.statusCode).toBe(200);
     const body = JSON.parse(result.body);
-    expect(body.photos).toHaveLength(1);
-    expect(body.photos[0].PK).toBe("PHOTO#1");
+    expect(body.cards).toHaveLength(1);
+    expect(body.cards[0].photoId).toBe("PHOTO#1");
   });
 });

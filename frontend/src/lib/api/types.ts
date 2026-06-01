@@ -1,4 +1,20 @@
-export type TemplateTransition = "fade" | "fade-scale" | "slide";
+export type TemplateTransition =
+  | "fade"
+  | "fade-scale"
+  | "slide"
+  | "fade-soft"
+  | "slide-parallax"
+  | "stack-flip"
+  | "kenburns"
+  | "ribbon-flow";
+
+export type TransitionEasing = "linear" | "ease" | "ease-in" | "ease-out" | "ease-in-out";
+
+export type TransitionConfig = {
+  durationMs?: number;
+  easing?: TransitionEasing;
+  staggerMs?: number;
+};
 export type TemplateLayerType = "photo-frame" | "text" | "decorative-asset";
 
 export type TemplateCanvas = {
@@ -10,6 +26,7 @@ export type TemplatePlayback = {
   transition: TemplateTransition;
   intervalSeconds: number;
   transitionSeconds: number;
+  transitionConfig?: TransitionConfig;
 };
 
 export type TemplateAsset = {
@@ -34,6 +51,27 @@ export type TemplateLayerData = {
   borderColor?: string;
   borderRadius?: number;
   backgroundColor?: string;
+  framePresetId?: string;
+  frameTokenOverride?: Partial<FrameToken>;
+};
+
+export type FrameToken = {
+  borderWidth: number;
+  borderRadius: number;
+  padding: number;
+  shadow: string;
+  color: string;
+  backgroundColor?: string;
+  gradient?: string;
+  doubleBorder?: boolean;
+  texture?: string;
+  glow?: string;
+};
+
+export type FramePreset = {
+  id: string;
+  name: string;
+  token: FrameToken;
 };
 
 export type TemplateLayer = {
@@ -54,6 +92,7 @@ export type EventTemplate = {
   playback: TemplatePlayback;
   layers: TemplateLayer[];
   assets: TemplateAsset[];
+  framePresets?: FramePreset[];
   updatedAt: string;
 };
 
@@ -97,9 +136,21 @@ export type WallCard = {
 export type WallPhotosResponse = {
   eventId: string;
   wallPolicy: WallPolicy;
+  generatedAt?: string;
   photos: GuestUpload[];
+  cards?: WallCard[];
+  nextCursor?: string;
 };
 
 export type MyGuestPhotosResponse = {
   photos: GuestUpload[];
+  nextCursor?: string;
+};
+
+export type SlideshowPhotosResponse = {
+  event: Record<string, any>;
+  photos: Array<
+    Pick<GuestUpload, "PK" | "nickname" | "greeting" | "createdAt" | "presignedUrl">
+  >;
+  nextCursor?: string;
 };

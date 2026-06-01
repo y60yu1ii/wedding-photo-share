@@ -8,6 +8,7 @@ import type {
   TemplateLayer,
   TemplatePlayback,
   TemplateTransition,
+  SlideshowPhotosResponse,
   WallPolicy,
   WallPhotosResponse,
 } from "./types";
@@ -118,10 +119,15 @@ export const events = {
     if (!res.ok) throw new Error("取得婚禮失敗");
     return res.json();
   },
-  async photos(eventId: string) {
-    const res = await request(`/admin/events/${eventId}/photos`, { token: true });
+  async photosPage(eventId: string, limit = 40, cursor?: string) {
+    const params = new URLSearchParams({ limit: String(limit) });
+    if (cursor) params.set("cursor", cursor);
+    const res = await request(`/admin/events/${eventId}/photos?${params.toString()}`, { token: true });
     if (!res.ok) throw new Error("取得照片失敗");
-    const data = await res.json();
+    return res.json() as Promise<{ photos: GuestUpload[]; nextCursor?: string }>;
+  },
+  async photos(eventId: string) {
+    const data = await events.photosPage(eventId);
     return data.photos ?? [];
   },
   async approvePhoto(photoId: string) {
@@ -151,17 +157,26 @@ export const events = {
 
 // Guest flows
 export const slideshow = {
-  async photos(eventId: string) {
-    const res = await request(`/slideshow/photos?eventId=${eventId}`);
+  async photosPage(eventId: string, limit = 50, cursor?: string) {
+    const params = new URLSearchParams({ eventId, limit: String(limit) });
+    if (cursor) params.set("cursor", cursor);
+    const res = await request(`/slideshow/photos?${params.toString()}`);
     if (!res.ok) throw new Error("取得照片失敗");
-    const data = await res.json();
-    return { event: data.event ?? {}, photos: data.photos ?? [] };
+    const data = (await res.json()) as SlideshowPhotosResponse;
+    return { event: data.event ?? {}, photos: data.photos ?? [], nextCursor: data.nextCursor };
+  },
+  async photos(eventId: string) {
+    const data = await slideshow.photosPage(eventId);
+    return { event: data.event, photos: data.photos };
   },
 };
 
 export const wall = {
-  async photos(eventId: string): Promise<WallPhotosResponse> {
-    const res = await request(`/wall/photos?eventId=${encodeURIComponent(eventId)}`);
+  async photos(eventId: string, since?: string): Promise<WallPhotosResponse> {
+    const params = new URLSearchParams();
+    params.set("eventId", eventId);
+    if (since) params.set("since", since);
+    const res = await request(`/wall/photos?${params.toString()}`);
     if (!res.ok) throw new Error("取得簽到牆失敗");
     return res.json() as Promise<WallPhotosResponse>;
   },
@@ -187,6 +202,25 @@ const myguestPhotos: MyGuestPhotosMethod = async (
 };
 
 export const myguest = {
+  async photosPage(
+    eventId: string,
+    guestKeyOrNickname: string,
+    nickname?: string,
+    limit = 40,
+    cursor?: string,
+  ) {
+    const params = new URLSearchParams({ eventId, limit: String(limit) });
+    if (cursor) params.set("cursor", cursor);
+    if (nickname === undefined) {
+      params.set("nickname", guestKeyOrNickname);
+    } else {
+      params.set("guestKey", guestKeyOrNickname);
+      params.set("nickname", nickname);
+    }
+    const res = await request(`/myguest/photos?${params.toString()}`);
+    if (!res.ok) throw new Error("取得上傳記錄失敗");
+    return res.json() as Promise<MyGuestPhotosResponse>;
+  },
   photos: myguestPhotos,
   async setRepresentative(photoId: string, eventId: string, guestKey?: string, nickname?: string) {
     const payload: Record<string, string> = { eventId };

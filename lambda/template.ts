@@ -1,4 +1,12 @@
-export type TemplateTransition = "fade" | "fade-scale" | "slide";
+export type TemplateTransition =
+  | "fade"
+  | "fade-scale"
+  | "slide"
+  | "fade-soft"
+  | "slide-parallax"
+  | "stack-flip"
+  | "kenburns"
+  | "ribbon-flow";
 export type TemplateLayerType = "photo-frame" | "text" | "decorative-asset";
 
 export type TemplateCanvas = {
@@ -10,6 +18,11 @@ export type TemplatePlayback = {
   transition: TemplateTransition;
   intervalSeconds: number;
   transitionSeconds: number;
+  transitionConfig?: {
+    durationMs?: number;
+    easing?: "linear" | "ease" | "ease-in" | "ease-out" | "ease-in-out";
+    staggerMs?: number;
+  };
 };
 
 export type TemplateAsset = {
@@ -33,6 +46,27 @@ export type TemplateLayerData = {
   borderColor?: string;
   borderRadius?: number;
   backgroundColor?: string;
+  framePresetId?: string;
+  frameTokenOverride?: Partial<FrameToken>;
+};
+
+export type FrameToken = {
+  borderWidth: number;
+  borderRadius: number;
+  padding: number;
+  shadow: string;
+  color: string;
+  backgroundColor?: string;
+  gradient?: string;
+  doubleBorder?: boolean;
+  texture?: string;
+  glow?: string;
+};
+
+export type FramePreset = {
+  id: string;
+  name: string;
+  token: FrameToken;
 };
 
 export type TemplateLayer = {
@@ -53,6 +87,7 @@ export type EventTemplate = {
   playback: TemplatePlayback;
   layers: TemplateLayer[];
   assets: TemplateAsset[];
+  framePresets?: FramePreset[];
   updatedAt: string;
 };
 
@@ -67,6 +102,7 @@ const DEFAULT_CANVAS = { width: 1920, height: 1080 };
 const MAX_DIMENSION = 10000;
 const MAX_LAYER_COUNT = 100;
 const MAX_ASSET_COUNT = 100;
+const MAX_FRAME_PRESET_COUNT = 32;
 
 export function defaultTemplate(): EventTemplate {
   return {
@@ -87,7 +123,16 @@ export function createTemplateSnapshot(template: EventTemplate, published = fals
 }
 
 export function isTemplateTransition(value: unknown): value is TemplateTransition {
-  return value === "fade" || value === "fade-scale" || value === "slide";
+  return (
+    value === "fade" ||
+    value === "fade-scale" ||
+    value === "slide" ||
+    value === "fade-soft" ||
+    value === "slide-parallax" ||
+    value === "stack-flip" ||
+    value === "kenburns" ||
+    value === "ribbon-flow"
+  );
 }
 
 export function normalizeTemplate(input: any, fallback = defaultTemplate()): EventTemplate {
@@ -104,6 +149,7 @@ export function normalizeTemplate(input: any, fallback = defaultTemplate()): Eve
       input?.playback?.transitionSeconds,
       fallback.playback.transitionSeconds,
     ),
+    transitionConfig: normalizeTransitionConfig(input?.playback?.transitionConfig, fallback.playback.transitionConfig),
   };
   const layers = Array.isArray(input?.layers)
     ? input.layers.slice(0, MAX_LAYER_COUNT).map(normalizeLayer)
@@ -111,11 +157,15 @@ export function normalizeTemplate(input: any, fallback = defaultTemplate()): Eve
   const assets = Array.isArray(input?.assets)
     ? input.assets.slice(0, MAX_ASSET_COUNT).map(normalizeAsset)
     : fallback.assets;
+  const framePresets = Array.isArray(input?.framePresets)
+    ? input.framePresets.slice(0, MAX_FRAME_PRESET_COUNT).map(normalizeFramePreset)
+    : fallback.framePresets;
   return {
     canvas,
     playback,
     layers,
     assets,
+    framePresets,
     updatedAt: typeof input?.updatedAt === "string" ? input.updatedAt : fallback.updatedAt,
   };
 }
@@ -144,6 +194,9 @@ export function validateTemplate(template: EventTemplate) {
   }
   if (template.assets.length > MAX_ASSET_COUNT) {
     throw new Error("Too many template assets");
+  }
+  if ((template.framePresets?.length ?? 0) > MAX_FRAME_PRESET_COUNT) {
+    throw new Error("Too many frame presets");
   }
   for (const layer of template.layers) {
     if (!layer.id || !layer.type) {
@@ -225,10 +278,79 @@ function normalizeLayerData(input: any): TemplateLayerData {
     borderColor: typeof input?.borderColor === "string" ? input.borderColor : undefined,
     borderRadius: typeof input?.borderRadius === "number" ? input.borderRadius : undefined,
     backgroundColor: typeof input?.backgroundColor === "string" ? input.backgroundColor : undefined,
+    framePresetId: typeof input?.framePresetId === "string" ? input.framePresetId : undefined,
+    frameTokenOverride: input?.frameTokenOverride && typeof input.frameTokenOverride === "object"
+      ? normalizeFrameTokenPartial(input.frameTokenOverride)
+      : undefined,
+  };
+}
+
+function normalizeTransitionConfig(input: any, fallback?: TemplatePlayback["transitionConfig"]) {
+  const safeEasing =
+    input?.easing === "linear" ||
+    input?.easing === "ease" ||
+    input?.easing === "ease-in" ||
+    input?.easing === "ease-out" ||
+    input?.easing === "ease-in-out"
+      ? input.easing
+      : fallback?.easing;
+  const durationMs = safeNonNegativeNumber(input?.durationMs, fallback?.durationMs);
+  const staggerMs = safeNonNegativeNumber(input?.staggerMs, fallback?.staggerMs);
+  if (durationMs === undefined && safeEasing === undefined && staggerMs === undefined) {
+    return undefined;
+  }
+  return {
+    durationMs,
+    easing: safeEasing,
+    staggerMs,
+  };
+}
+
+function normalizeFramePreset(input: any): FramePreset {
+  return {
+    id: typeof input?.id === "string" && input.id ? input.id : crypto.randomUUID(),
+    name: typeof input?.name === "string" && input.name ? input.name.slice(0, 80) : "Custom Frame",
+    token: normalizeFrameToken(input?.token),
+  };
+}
+
+function normalizeFrameToken(input: any): FrameToken {
+  return {
+    borderWidth: safeNonNegativeNumber(input?.borderWidth, 8) ?? 8,
+    borderRadius: safeNonNegativeNumber(input?.borderRadius, 24) ?? 24,
+    padding: safeNonNegativeNumber(input?.padding, 8) ?? 8,
+    shadow: typeof input?.shadow === "string" ? input.shadow : "0 10px 30px rgba(0,0,0,0.22)",
+    color: typeof input?.color === "string" ? input.color : "#ffffff",
+    backgroundColor: typeof input?.backgroundColor === "string" ? input.backgroundColor : undefined,
+    gradient: typeof input?.gradient === "string" ? input.gradient : undefined,
+    doubleBorder: typeof input?.doubleBorder === "boolean" ? input.doubleBorder : undefined,
+    texture: typeof input?.texture === "string" ? input.texture : undefined,
+    glow: typeof input?.glow === "string" ? input.glow : undefined,
+  };
+}
+
+function normalizeFrameTokenPartial(input: any): Partial<FrameToken> {
+  return {
+    borderWidth: safeNonNegativeNumber(input?.borderWidth, undefined),
+    borderRadius: safeNonNegativeNumber(input?.borderRadius, undefined),
+    padding: safeNonNegativeNumber(input?.padding, undefined),
+    shadow: typeof input?.shadow === "string" ? input.shadow : undefined,
+    color: typeof input?.color === "string" ? input.color : undefined,
+    backgroundColor: typeof input?.backgroundColor === "string" ? input.backgroundColor : undefined,
+    gradient: typeof input?.gradient === "string" ? input.gradient : undefined,
+    doubleBorder: typeof input?.doubleBorder === "boolean" ? input.doubleBorder : undefined,
+    texture: typeof input?.texture === "string" ? input.texture : undefined,
+    glow: typeof input?.glow === "string" ? input.glow : undefined,
   };
 }
 
 function safeNumber(value: unknown) {
   const n = typeof value === "number" ? value : Number(value);
   return Number.isFinite(n) ? n : 0;
+}
+
+function safeNonNegativeNumber(value: unknown, fallback: number | undefined) {
+  if (value === undefined || value === null || value === "") return fallback;
+  const n = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(n) && n >= 0 ? n : fallback;
 }

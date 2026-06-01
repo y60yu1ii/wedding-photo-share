@@ -121,31 +121,31 @@
         }
       }
     },
-    "b3676e35508dfb696a42ca5981707270e2bdc57827d7c8726be74989fbb006c3": {
+    "63f7564ae2a0db283c192aae7fc42dd7e8a1efbd978bd2f310b92eec23fe7a7f": {
       "displayName": "DeployFrontend/Asset1",
       "source": {
-        "path": "asset.b3676e35508dfb696a42ca5981707270e2bdc57827d7c8726be74989fbb006c3",
+        "path": "asset.63f7564ae2a0db283c192aae7fc42dd7e8a1efbd978bd2f310b92eec23fe7a7f",
         "packaging": "zip"
       },
       "destinations": {
-        "127537619055-ap-northeast-1-fe8530a2": {
+        "127537619055-ap-northeast-1-10005d40": {
           "bucketName": "cdk-hnb659fds-assets-127537619055-ap-northeast-1",
-          "objectKey": "b3676e35508dfb696a42ca5981707270e2bdc57827d7c8726be74989fbb006c3.zip",
+          "objectKey": "63f7564ae2a0db283c192aae7fc42dd7e8a1efbd978bd2f310b92eec23fe7a7f.zip",
           "region": "ap-northeast-1",
           "assumeRoleArn": "arn:${AWS::Partition}:iam::127537619055:role/cdk-hnb659fds-file-publishing-role-127537619055-ap-northeast-1"
         }
       }
     },
-    "21e843175762a9466f85bbf11bbf8fb7c5821713f7ddf5dbe2ba241df0cb48e4": {
+    "51af3060ea8f2722029a78843dd58650974b9191e33a4971dbc625db441b2f1f": {
       "displayName": "WeddingPhotoStack Template",
       "source": {
         "path": "WeddingPhotoStack.template.json",
         "packaging": "file"
       },
       "destinations": {
-        "127537619055-ap-northeast-1-0eb8296a": {
+        "127537619055-ap-northeast-1-b4ae79db": {
           "bucketName": "cdk-hnb659fds-assets-127537619055-ap-northeast-1",
-          "objectKey": "21e843175762a9466f85bbf11bbf8fb7c5821713f7ddf5dbe2ba241df0cb48e4.json",
+          "objectKey": "51af3060ea8f2722029a78843dd58650974b9191e33a4971dbc625db441b2f1f.json",
           "region": "ap-northeast-1",
           "assumeRoleArn": "arn:${AWS::Partition}:iam::127537619055:role/cdk-hnb659fds-file-publishing-role-127537619055-ap-northeast-1"
         }

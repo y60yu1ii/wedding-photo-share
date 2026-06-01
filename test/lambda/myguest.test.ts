@@ -60,6 +60,7 @@ describe("GET /myguest/photos", () => {
     const body = JSON.parse(result.body);
     expect(body.photos).toHaveLength(1);
     expect(body.photos[0].presignedUrl).toBe("https://signed-view-url");
+    expect(mockDdbSend.mock.calls[0][0].input.IndexName).toBe("eventId-nickname-index");
   });
 
   test("returns photos by eventId + guestKey while keeping representative metadata", async () => {
@@ -87,6 +88,7 @@ describe("GET /myguest/photos", () => {
     expect(body.photos[0].guestKey).toBe("guest-abc");
     expect(body.photos[0].representativePhotoId).toBe("PHOTO#2");
     expect(body.photos[0].createdAt).toBe("2026-05-29T00:00:01.000Z");
+    expect(mockDdbSend.mock.calls[0][0].input.IndexName).toBe("eventId-status-index");
   });
 });
 
@@ -104,8 +106,8 @@ describe("PATCH /myguest/photos/:photoId/representative", () => {
       })
       .mockResolvedValueOnce({
         Items: [
-          { PK: "PHOTO#1", SK: "METADATA", eventId: "EVENT-1", guestKey: "guest-abc", nickname: "Alice" },
-          { PK: "PHOTO#2", SK: "METADATA", eventId: "EVENT-1", guestKey: "guest-abc", nickname: "Alice" },
+          { PK: "PHOTO#1", SK: "METADATA", eventId: "EVENT-1", guestKey: "guest-abc", nickname: "Alice", confirmedAt: "2026-05-29T00:00:01.000Z" },
+          { PK: "PHOTO#2", SK: "METADATA", eventId: "EVENT-1", guestKey: "guest-abc", nickname: "Alice", confirmedAt: "2026-05-29T00:00:02.000Z" },
         ],
       })
       .mockResolvedValue({});
@@ -116,6 +118,7 @@ describe("PATCH /myguest/photos/:photoId/representative", () => {
     };
     const result = await handler(event);
     expect(result.statusCode).toBe(200);
+    expect(mockDdbSend.mock.calls[1][0].input.IndexName).toBe("eventId-nickname-index");
     expect(mockDdbSend.mock.calls[2][0].input.ExpressionAttributeValues[":representativePhotoId"]).toBe("PHOTO#2");
     expect(mockDdbSend.mock.calls[3][0].input.ExpressionAttributeValues[":representativePhotoId"]).toBe("PHOTO#2");
   });

@@ -386,11 +386,13 @@ export class WeddingPhotoStack extends cdk.Stack {
       apiId: this.websocketApi.ref,
       routeKey: "$connect",
       authorizationType: "NONE",
+      target: `integrations/${wsLambdaIntegration.attrIntegrationId}`,
     });
     new apigwv2.CfnRoute(this, "WsDisconnectRoute", {
       apiId: this.websocketApi.ref,
       routeKey: "$disconnect",
       authorizationType: "NONE",
+      target: `integrations/${wsLambdaIntegration.attrIntegrationId}`,
     });
     new apigwv2.CfnRoute(this, "WsBroadcastRoute", {
       apiId: this.websocketApi.ref,

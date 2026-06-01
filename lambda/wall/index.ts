@@ -9,6 +9,11 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 const dynamo = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 const s3 = new S3Client({});
+const wallCache = new Map<string, { expiresAt: number; payload: any }>();
+
+export function __resetWallCache() {
+  wallCache.clear();
+}
 
 function normalizeNickname(nickname: string): string {
   return nickname.trim().toLowerCase();
@@ -37,6 +42,17 @@ function chooseRepresentativePhoto(photos: Array<Record<string, any>>) {
   return photos[0];
 }
 
+function toWallCard(photo: Record<string, any>) {
+  return {
+    photoId: photo.PK,
+    guestKey: getGuestIdentity(photo),
+    nickname: photo.nickname,
+    createdAt: getPhotoCreatedAt(photo),
+    presignedUrl: photo.presignedUrl ?? "",
+    status: photo.status,
+  };
+}
+
 async function presignPhoto(s3Key: string): Promise<string> {
   return getSignedUrl(
     s3,
@@ -48,7 +64,13 @@ async function presignPhoto(s3Key: string): Promise<string> {
   );
 }
 
-async function getWallPhotos(eventId: string) {
+async function getWallPhotos(eventId: string, since?: string) {
+  const cacheKey = `${eventId}:${since ?? "full"}`;
+  const cached = wallCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.payload;
+  }
+
   const eventRecord = await dynamo.send(
     new GetCommand({
       TableName: process.env.EVENTS_TABLE!,
@@ -87,10 +109,9 @@ async function getWallPhotos(eventId: string) {
         };
 
   const photosResp = await dynamo.send(new QueryCommand(queryInput));
-  const sortedPhotos = (photosResp.Items ?? []).sort((a, b) => getPhotoCreatedAt(a).localeCompare(getPhotoCreatedAt(b)));
   const photosByGuest = new Map<string, Array<Record<string, any>>>();
 
-  for (const photo of sortedPhotos) {
+  for (const photo of (photosResp.Items ?? [])) {
     const identity = getGuestIdentity(photo);
     const guestPhotos = photosByGuest.get(identity) ?? [];
     guestPhotos.push(photo);
@@ -98,7 +119,10 @@ async function getWallPhotos(eventId: string) {
   }
 
   const representativePhotos = Array.from(photosByGuest.values())
-    .map((photos) => chooseRepresentativePhoto(photos))
+    .map((photos) => {
+      const sortedPhotos = [...photos].sort((a, b) => getPhotoCreatedAt(a).localeCompare(getPhotoCreatedAt(b)));
+      return chooseRepresentativePhoto(sortedPhotos);
+    })
     .sort((a, b) => getPhotoCreatedAt(a).localeCompare(getPhotoCreatedAt(b)));
 
   const withUrls = await Promise.all(
@@ -109,14 +133,23 @@ async function getWallPhotos(eventId: string) {
     }))
   );
 
-  return {
+  const filteredCards = since
+    ? withUrls.filter((card) => (card.createdAt ?? "") > since)
+    : withUrls;
+  const payload = {
     statusCode: 200,
     body: JSON.stringify({
       eventId,
       wallPolicy,
+      generatedAt: new Date().toISOString(),
       photos: withUrls,
+      cards: filteredCards.map((photo) => toWallCard(photo)),
     }),
   };
+
+  wallCache.set(cacheKey, { expiresAt: Date.now() + 10000, payload });
+
+  return payload;
 }
 
 export async function handler(event: any) {
@@ -129,7 +162,7 @@ export async function handler(event: any) {
       if (!eventId) {
         return { statusCode: 400, body: JSON.stringify({ error: "eventId required" }) };
       }
-      return await getWallPhotos(eventId);
+      return await getWallPhotos(eventId, event.queryStringParameters?.since);
     }
 
     return { statusCode: 404, body: JSON.stringify({ error: "Not found" }) };

@@ -26,3 +26,5 @@
 
 # Antigravity logs & metadata
 /.omx/
+# Added by code-review-graph
+.code-review-graph/

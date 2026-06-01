@@ -13,6 +13,7 @@
   let loading = $state(true);
   let wsStatus = $state<'disconnected' | 'connecting' | 'connected'>('disconnected');
   let wallPolicy = $state<'approved_only' | 'all_uploads'>("approved_only");
+  let loadingMore = $state(false);
   
   let socket: WebSocket;
 
@@ -29,7 +30,7 @@
     if (!wsUrl) return;
     wsStatus = 'connecting';
     try {
-      socket = new WebSocket(wsUrl);
+      socket = new WebSocket(`${wsUrl}?eventId=${encodeURIComponent(eventId)}`);
 
       socket.onopen = () => {
         wsStatus = 'connected';
@@ -63,15 +64,40 @@
 
   async function loadData() {
     loading = true;
+    loadingMore = false;
     try {
-      [event, photos] = await Promise.all([
+      const [loadedEvent, firstPage] = await Promise.all([
         events.get(eventId),
-        events.photos(eventId),
+        events.photosPage(eventId),
       ]);
+      event = loadedEvent;
       wallPolicy = event.wallPolicy ?? "approved_only";
-    } finally {
+      photos = sortPhotosDesc(firstPage.photos ?? []);
       loading = false;
+      loadingMore = !!firstPage.nextCursor;
+      void loadMorePhotos(firstPage.nextCursor);
+    } finally {
+      if (loading) {
+        loading = false;
+      }
     }
+  }
+
+  async function loadMorePhotos(cursor?: string) {
+    let nextCursor = cursor;
+    while (nextCursor) {
+      const page = await events.photosPage(eventId, 40, nextCursor);
+      photos = sortPhotosDesc([...photos, ...(page.photos ?? [])]);
+      nextCursor = page.nextCursor;
+      loadingMore = !!nextCursor;
+    }
+    loadingMore = false;
+  }
+
+  function sortPhotosDesc(list: any[]) {
+    return [...list].sort((a, b) =>
+      (b.confirmedAt ?? b.uploadedAt ?? b.createdAt ?? "").localeCompare(a.confirmedAt ?? a.uploadedAt ?? a.createdAt ?? "")
+    );
   }
 
   async function approvePhoto(photoId: string) {
@@ -233,10 +259,13 @@
     {/if}
   </div>
 
-  {#if loading}
-    <div class="text-center py-12 text-[#8b7355]">載入中...</div>
-  {:else}
-    {#if pending.length > 0}
+    {#if loading}
+      <div class="text-center py-12 text-[#8b7355]">載入中...</div>
+    {:else}
+      {#if loadingMore}
+        <p class="mb-3 text-center text-xs text-[#8b7355]">正在分批載入更多照片...</p>
+      {/if}
+      {#if pending.length > 0}
       <div class="bg-white rounded-2xl p-5 shadow-sm border border-[#e8d5c4] mb-4">
         <h2 class="text-sm font-semibold text-amber-600 mb-3">待審核 ({pending.length})</h2>
         <div class="grid grid-cols-2 gap-3">
@@ -246,6 +275,8 @@
                 <img
                   src={photo.presignedUrl ?? `https://picsum.photos/seed/${photo.PK}/200/200`}
                   alt={photo.nickname}
+                  loading="lazy"
+                  decoding="async"
                   class="w-full h-full object-cover"
                 />
                 <div class="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-xs py-1 px-2 truncate">
@@ -289,6 +320,8 @@
                 <img
                   src={photo.presignedUrl ?? `https://picsum.photos/seed/${photo.PK}/200/200`}
                   alt={photo.nickname}
+                  loading="lazy"
+                  decoding="async"
                   class="w-full h-full object-cover"
                 />
                 <div class="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-xs py-1 px-2 truncate">

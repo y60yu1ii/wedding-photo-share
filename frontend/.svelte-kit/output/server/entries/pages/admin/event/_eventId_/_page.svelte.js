@@ -95,10 +95,15 @@ const events = {
     if (!res.ok) throw new Error("取得婚禮失敗");
     return res.json();
   },
-  async photos(eventId) {
-    const res = await request(`/admin/events/${eventId}/photos`, { token: true });
+  async photosPage(eventId, limit = 40, cursor) {
+    const params = new URLSearchParams({ limit: String(limit) });
+    if (cursor) params.set("cursor", cursor);
+    const res = await request(`/admin/events/${eventId}/photos?${params.toString()}`, { token: true });
     if (!res.ok) throw new Error("取得照片失敗");
-    const data = await res.json();
+    return res.json();
+  },
+  async photos(eventId) {
+    const data = await events.photosPage(eventId);
     return data.photos ?? [];
   },
   async approvePhoto(photoId) {

@@ -38,6 +38,8 @@
  * The above values will be the same _even if_ different values for `ENVIRONMENT` or `PUBLIC_BASE_URL` are set at runtime, as they are statically replaced in your code with their build time values.
  */
 declare module '$env/static/private' {
+	export const VITE_API_URL: string;
+	export const VITE_WS_URL: string;
 	export const NVM_INC: string;
 	export const GREP_COLOR: string;
 	export const CODEX_SANDBOX_NETWORK_DISABLED: string;
@@ -90,10 +92,8 @@ declare module '$env/static/private' {
 	export const npm_config_npm_version: string;
 	export const CODEX_MANAGED_BY_NPM: string;
 	export const CODEX_CI: string;
-	export const FORCE_COLOR: string;
 	export const npm_config_node_gyp: string;
 	export const npm_package_version: string;
-	export const DEBUG_COLORS: string;
 	export const SHLVL: string;
 	export const HOME: string;
 	export const GH_PAGER: string;
@@ -107,9 +107,8 @@ declare module '$env/static/private' {
 	export const LC_CTYPE: string;
 	export const NVM_BIN: string;
 	export const BUN_INSTALL: string;
-	export const BROWSER: string;
 	export const npm_config_user_agent: string;
-	export const PLAYWRIGHT_TEST: string;
+	export const BROWSER: string;
 	export const _P9K_SSH_TTY: string;
 	export const GIT_PAGER: string;
 	export const npm_node_execpath: string;
@@ -203,6 +202,8 @@ declare module '$env/static/public' {
  */
 declare module '$env/dynamic/private' {
 	export const env: {
+		VITE_API_URL: string;
+		VITE_WS_URL: string;
 		NVM_INC: string;
 		GREP_COLOR: string;
 		CODEX_SANDBOX_NETWORK_DISABLED: string;
@@ -255,10 +256,8 @@ declare module '$env/dynamic/private' {
 		npm_config_npm_version: string;
 		CODEX_MANAGED_BY_NPM: string;
 		CODEX_CI: string;
-		FORCE_COLOR: string;
 		npm_config_node_gyp: string;
 		npm_package_version: string;
-		DEBUG_COLORS: string;
 		SHLVL: string;
 		HOME: string;
 		GH_PAGER: string;
@@ -272,9 +271,8 @@ declare module '$env/dynamic/private' {
 		LC_CTYPE: string;
 		NVM_BIN: string;
 		BUN_INSTALL: string;
-		BROWSER: string;
 		npm_config_user_agent: string;
-		PLAYWRIGHT_TEST: string;
+		BROWSER: string;
 		_P9K_SSH_TTY: string;
 		GIT_PAGER: string;
 		npm_node_execpath: string;

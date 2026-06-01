@@ -7,6 +7,7 @@ import {
 import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { defaultTemplate, normalizeTemplate } from "../template";
+import { decodeCursor, encodeCursor } from "../pagination";
 
 const dynamo = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 const s3 = new S3Client({});
@@ -35,7 +36,7 @@ async function decorateTemplateAssets(template: any) {
 }
 
 // GET /slideshow/photos?eventId=xxx → list approved photos for event
-async function getSlideshowPhotos(eventId: string) {
+async function getSlideshowPhotos(eventId: string, limit = 50, cursor?: string) {
   const resp = await dynamo.send(
     new QueryCommand({
       TableName: process.env.PHOTOS_TABLE!,
@@ -48,6 +49,8 @@ async function getSlideshowPhotos(eventId: string) {
         ":approved": "approved",
         ":pendingNick": "__pending__",
       },
+      Limit: limit,
+      ExclusiveStartKey: decodeCursor(cursor),
     })
   );
   const items = resp.Items ?? [];
@@ -60,10 +63,19 @@ async function getSlideshowPhotos(eventId: string) {
         Key: p.s3Key,
       });
       const presignedUrl = await getSignedUrl(s3, cmd, { expiresIn: PRESIGN_EXPIRY });
-      return { ...p, presignedUrl };
+      return {
+        PK: p.PK,
+        nickname: p.nickname,
+        greeting: p.greeting,
+        createdAt: p.confirmedAt ?? p.uploadedAt ?? p.createdAt,
+        presignedUrl,
+      };
     })
   );
-  return withUrls;
+  return {
+    photos: withUrls,
+    nextCursor: encodeCursor(resp.LastEvaluatedKey),
+  };
 }
 
 // GET /slideshow/presign/{photoId} → presigned GET URL for photo
@@ -111,8 +123,9 @@ export async function handler(event: any) {
       if (!eventId) {
         return { statusCode: 400, body: JSON.stringify({ error: "eventId required" }) };
       }
-      const photos = await getSlideshowPhotos(eventId);
-      return { statusCode: 200, body: JSON.stringify({ eventId, photos }) };
+      const limit = Math.max(1, Math.min(Number(event.queryStringParameters?.limit ?? 50), 100));
+      const result = await getSlideshowPhotos(eventId, limit, event.queryStringParameters?.cursor);
+      return { statusCode: 200, body: JSON.stringify({ eventId, ...result }) };
     }
 
     // GET /slideshow/template?eventId=xxx

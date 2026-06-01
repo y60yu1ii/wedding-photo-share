@@ -8,6 +8,7 @@ import {
 } from "@aws-sdk/lib-dynamodb";
 import { S3Client, GetObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { decodeCursor, encodeCursor } from "../pagination";
 
 const dynamo = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 const s3 = new S3Client({});
@@ -20,20 +21,41 @@ function getPhotoCreatedAt(photo: Record<string, any>): string {
   return photo.confirmedAt ?? photo.uploadedAt ?? photo.createdAt ?? "";
 }
 
-async function listEventPhotos(eventId: string) {
-  const resp = await dynamo.send(
-    new QueryCommand({
-      TableName: process.env.PHOTOS_TABLE!,
-      IndexName: "eventId-status-index",
-      KeyConditionExpression: "eventId = :eid",
-      FilterExpression: "nickname <> :pendingNick AND attribute_exists(confirmedAt)",
-      ExpressionAttributeValues: {
-        ":eid": eventId,
-        ":pendingNick": "__pending__",
-      },
-    })
+async function queryGuestPhotos(eventId: string, guestKey?: string, nickname?: string, limit = 40, cursor?: string) {
+  const queryInput = nickname
+    ? {
+        TableName: process.env.PHOTOS_TABLE!,
+        IndexName: "eventId-nickname-index",
+        KeyConditionExpression: "eventId = :eid AND nickname = :nick",
+        ExpressionAttributeValues: {
+          ":eid": eventId,
+          ":nick": nickname,
+        },
+        Limit: limit,
+        ExclusiveStartKey: decodeCursor(cursor),
+      }
+    : {
+        TableName: process.env.PHOTOS_TABLE!,
+        IndexName: "eventId-status-index",
+        KeyConditionExpression: "eventId = :eid",
+        ExpressionAttributeValues: {
+          ":eid": eventId,
+        },
+        Limit: limit,
+        ExclusiveStartKey: decodeCursor(cursor),
+      };
+
+  const resp = await dynamo.send(new QueryCommand(queryInput));
+  const photos = (resp.Items ?? []).filter(
+      (photo) =>
+        photo.nickname !== "__pending__" &&
+        typeof photo.confirmedAt === "string" &&
+        photoBelongsToGuest(photo, eventId, guestKey, nickname)
   );
-  return resp.Items ?? [];
+  return {
+    photos,
+    nextCursor: encodeCursor(resp.LastEvaluatedKey),
+  };
 }
 
 function photoBelongsToGuest(photo: Record<string, any>, eventId: string, guestKey?: string, nickname?: string): boolean {
@@ -56,10 +78,8 @@ function photoBelongsToGuest(photo: Record<string, any>, eventId: string, guestK
 
 // GET /myguest/photos?eventId=xxx&guestKey=yyy or nickname fallback
 async function getMyPhotos(eventId: string, guestKey?: string, nickname?: string) {
-  const photos = await listEventPhotos(eventId);
-  return photos
-    .filter((photo) => photoBelongsToGuest(photo, eventId, guestKey, nickname))
-    .sort((a, b) => getPhotoCreatedAt(a).localeCompare(getPhotoCreatedAt(b)));
+  const photos = await queryGuestPhotos(eventId, guestKey, nickname);
+  return photos.photos.sort((a, b) => getPhotoCreatedAt(a).localeCompare(getPhotoCreatedAt(b)));
 }
 
 // Presign photo for display
@@ -154,10 +174,11 @@ export async function handler(event: any) {
       if (!eventId || (!guestKey && !nickname)) {
         return { statusCode: 400, body: JSON.stringify({ error: "missing params" }) };
       }
-      const photos = await getMyPhotos(eventId, guestKey, nickname);
+      const limit = Math.max(1, Math.min(Number(query.limit ?? 40), 100));
+      const page = await queryGuestPhotos(eventId, guestKey, nickname, limit, query.cursor);
       // Attach presigned URLs
       const withUrls = await Promise.all(
-        photos.map(async (p: any) => ({
+        page.photos.map(async (p: any) => ({
           PK: p.PK,
           eventId: p.eventId,
           nickname: p.nickname,
@@ -168,7 +189,7 @@ export async function handler(event: any) {
           presignedUrl: p.s3Key ? await presignPhoto(p.s3Key) : undefined,
         }))
       );
-      return { statusCode: 200, body: JSON.stringify({ photos: withUrls }) };
+      return { statusCode: 200, body: JSON.stringify({ photos: withUrls, nextCursor: page.nextCursor }) };
     }
 
     const representativeMatch = path.match(/^\/myguest\/photos\/([^/]+)\/representative$/);

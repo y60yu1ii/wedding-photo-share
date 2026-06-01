@@ -4,6 +4,7 @@
   import { wall } from "$lib/api/client";
   import type { WallCard, WallPolicy } from "$lib/api/types";
   import { buildWallCards, shuffleWallCards } from "$lib/utils/wall";
+  import { createWallAccent } from "$lib/utils/wallMotion";
   import SignInWallCard from "$lib/components/SignInWallCard.svelte";
   import WallAccent from "$lib/components/WallAccent.svelte";
 
@@ -16,26 +17,41 @@
   let freshIds = $state<Set<string>>(new Set());
   let movingIds = $state<Set<string>>(new Set());
   let accents = $state<any[]>([]);
+  let pointer = $state({ x: 50, y: 50, active: false });
+  let lastSyncAt = $state<string>("");
   let socket: WebSocket | null = null;
   let refreshTimer: ReturnType<typeof setInterval> | null = null;
   let shuffleTimer: ReturnType<typeof setInterval> | null = null;
   let accentTimer: ReturnType<typeof setInterval> | null = null;
   let clearAccentTimers: Array<ReturnType<typeof setTimeout>> = [];
   let destroyed = false;
+  let accentSeedIndex = 0;
 
   function asFreshIds(nextCards: WallCard[], previousCards: WallCard[]) {
     const previous = new Set(previousCards.map((card) => card.photoId));
     return new Set(nextCards.filter((card) => !previous.has(card.photoId)).map((card) => card.photoId));
   }
 
-  async function refreshWall(animateNew = false) {
+  async function refreshWall(animateNew = false, since?: string) {
     try {
       const previousCards = cards;
-      const result = await wall.photos(eventId);
-      const nextCards = buildWallCards(result.photos, result.wallPolicy);
+      const result = await wall.photos(eventId, since);
+      const nextCards = result.cards ?? buildWallCards(result.photos, result.wallPolicy);
       wallPolicy = result.wallPolicy;
-      cards = nextCards;
-      freshIds = animateNew ? asFreshIds(nextCards, previousCards) : new Set();
+      if (since && previousCards.length > 0) {
+        const merged = [...previousCards];
+        for (const card of nextCards) {
+          if (!merged.some((item) => item.photoId === card.photoId)) {
+            merged.push(card);
+          }
+        }
+        cards = shuffleWallCards(merged.sort((a, b) => a.createdAt.localeCompare(b.createdAt)));
+        freshIds = new Set(nextCards.map((card) => card.photoId));
+      } else {
+        cards = nextCards;
+        freshIds = animateNew ? asFreshIds(nextCards, previousCards) : new Set();
+      }
+      lastSyncAt = result.generatedAt ?? new Date().toISOString();
       loading = false;
 
       const timer = setTimeout(() => {
@@ -49,22 +65,26 @@
   }
 
   function spawnAccent() {
-    const duration = 7 + Math.random() * 5;
-    const accent = {
-      id: crypto.randomUUID(),
-      type: "butterfly" as const,
-      left: 5 + Math.random() * 80,
-      top: 10 + Math.random() * 70,
-      scale: 0.75 + Math.random() * 0.55,
-      delay: 0,
-      duration,
-      rotation: Math.round((Math.random() - 0.5) * 40),
-    };
-    accents = [...accents, accent].slice(-3);
+    const accent = createWallAccent(eventId, performance.now(), accentSeedIndex);
+    accentSeedIndex += 1;
+    accents = [...accents, accent].slice(-6);
     const timeout = setTimeout(() => {
       accents = accents.filter((item) => item.id !== accent.id);
-    }, duration * 1000);
+    }, accent.lifeMs + 300);
     clearAccentTimers = [...clearAccentTimers, timeout];
+  }
+
+  function onWallPointerMove(event: PointerEvent) {
+    const target = event.currentTarget as HTMLElement;
+    const rect = target.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+    const x = ((event.clientX - rect.left) / rect.width) * 100;
+    const y = ((event.clientY - rect.top) / rect.height) * 100;
+    pointer = { x, y, active: true };
+  }
+
+  function onWallPointerLeave() {
+    pointer = { ...pointer, active: false };
   }
 
   function shuffleRecentCards() {
@@ -81,15 +101,19 @@
   function connectWebSocket() {
     if (!wsUrl) return;
 
-    socket = new WebSocket(wsUrl);
+    socket = new WebSocket(`${wsUrl}?eventId=${encodeURIComponent(eventId)}`);
     socket.onopen = () => {
       socket?.send(JSON.stringify({ action: "register", eventId }));
     };
     socket.onmessage = (messageEvent) => {
       try {
         const data = JSON.parse(messageEvent.data);
-        if (["new_photo", "delete_photo", "representative_changed"].includes(data.type)) {
-          void refreshWall(true);
+      if (["new_photo", "delete_photo", "representative_changed"].includes(data.type)) {
+          if (data.type === "new_photo" && lastSyncAt) {
+            void refreshWall(true, lastSyncAt);
+          } else {
+            void refreshWall(true);
+          }
         }
       } catch {
         // ignore malformed ws payloads
@@ -164,7 +188,12 @@
         </div>
       </div>
     {:else}
-      <section class="relative flex-1 rounded-[32px] border border-white/70 bg-white/45 p-4 shadow-[0_20px_80px_rgba(61,43,31,0.08)] backdrop-blur">
+      <section
+        class="relative flex-1 rounded-[32px] border border-white/70 bg-white/45 p-4 shadow-[0_20px_80px_rgba(61,43,31,0.08)] backdrop-blur"
+        role="presentation"
+        onpointermove={onWallPointerMove}
+        onpointerleave={onWallPointerLeave}
+      >
         <div data-testid="sign-in-wall-grid" class="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-5 2xl:grid-cols-6">
           {#each cards as card, index (card.photoId)}
             <SignInWallCard
@@ -176,7 +205,7 @@
         </div>
 
         {#each accents as accent (accent.id)}
-          <WallAccent {accent} />
+          <WallAccent {accent} {pointer} />
         {/each}
       </section>
     {/if}

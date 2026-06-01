@@ -226,6 +226,8 @@ describe("POST /admin/events (authenticated)", () => {
             const body = JSON.parse(result.body);
             expect(body.photos).toHaveLength(1);
             expect(body.photos[0].presignedUrl).toBe("https://mock-presigned-url");
+            expect(mockSend.mock.calls[0][0].input.IndexName).toBe("eventId-status-index");
+            expect(mockSend.mock.calls[0][0].input.KeyConditionExpression).toBe("eventId = :eid");
         });
     });
     describe("PATCH /admin/events/{eventId} (authenticated)", () => {

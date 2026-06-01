@@ -14,6 +14,7 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { ApiGatewayManagementApiClient, PostToConnectionCommand } from "@aws-sdk/client-apigatewaymanagementapi";
 import { SignJWT, jwtVerify } from "jose";
 import { defaultTemplate, makeAssetKey, normalizeTemplate, validateTemplate } from "../template";
+import { decodeCursor, encodeCursor } from "../pagination";
 
 const dynamo = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 const secrets = new SecretsManagerClient({});
@@ -286,21 +287,28 @@ async function presignPhoto(s3Key: string): Promise<string> {
   return getSignedUrl(s3, cmd, { expiresIn: 900 });
 }
 
-async function listEventPhotos(eventId: string) {
+async function listEventPhotos(eventId: string, limit = 40, cursor?: string) {
   const resp = await dynamo.send(
-    new ScanCommand({
+    new QueryCommand({
       TableName: process.env.PHOTOS_TABLE!,
-      FilterExpression: "eventId = :eid",
+      IndexName: "eventId-status-index",
+      KeyConditionExpression: "eventId = :eid",
       ExpressionAttributeValues: { ":eid": eventId },
+      Limit: limit,
+      ExclusiveStartKey: decodeCursor(cursor),
     })
   );
   const photos = resp.Items ?? [];
-  return Promise.all(
+  const withUrls = await Promise.all(
     photos.map(async (p: any) => ({
       ...p,
       presignedUrl: p.s3Key ? await presignPhoto(p.s3Key) : undefined,
     }))
   );
+  return {
+    photos: withUrls,
+    nextCursor: encodeCursor(resp.LastEvaluatedKey),
+  };
 }
 
 // Separate function to get event with actual keys (used only for admin display)
@@ -756,8 +764,9 @@ export async function handler(event: any) {
     // GET /admin/events/{eventId}/photos
     if (path.match(/^\/admin\/events\/[^/]+\/photos$/) && method === "GET") {
       const eventId = decodeURIComponent(path.split("/")[3]);
-      const photos = await listEventPhotos(eventId);
-      return res(200, { photos });
+      const limit = Math.max(1, Math.min(Number(event.queryStringParameters?.limit ?? 40), 100));
+      const result = await listEventPhotos(eventId, limit, event.queryStringParameters?.cursor);
+      return res(200, result);
     }
 
     return res(404, { error: "Not found" });
