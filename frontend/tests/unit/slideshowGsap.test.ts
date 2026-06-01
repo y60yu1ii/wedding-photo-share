@@ -166,11 +166,12 @@ describe("reduced-motion binding", () => {
     (gsap.matchMedia as any).mockClear();
     const ctx = gsap.matchMedia as unknown as ReturnType<typeof vi.fn>;
     (ctx as any).mockReturnValue({ add: vi.fn(), revert: vi.fn() });
-    importTarget().bindReducedMotion();
+    const handle = importTarget().bindReducedMotion();
     expect(gsap.matchMedia).toHaveBeenCalledWith(
       "(prefers-reduced-motion: reduce)",
       expect.any(Function),
     );
+    expect(handle).toMatchObject({ add: expect.any(Function), revert: expect.any(Function) });
   });
 
   it("reduced-motion branch calls fromTo with opacity-only vars at <=200ms", () => {
@@ -184,6 +185,7 @@ describe("reduced-motion binding", () => {
     captured?.({ isTouch: false });
     expect(gsap.fromTo).toHaveBeenCalled();
     const call = (gsap.fromTo as any).mock.calls[0];
+    expect(call[0]).toBeInstanceOf(HTMLElement);
     expect(call[1]).toEqual({ opacity: 0 });
     expect(call[2]).toMatchObject({ opacity: 1 });
     expect(call[2].duration).toBeLessThanOrEqual(0.2);
