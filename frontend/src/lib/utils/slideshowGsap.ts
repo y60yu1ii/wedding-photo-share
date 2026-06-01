@@ -111,6 +111,7 @@ registerRecipe("stack-flip", (target, config) => {
   return applyRecipe(target, config, { rotateY: 90, opacity: 0 }, { rotateY: 0, opacity: 1, ease: "power3.out" });
 });
 
+// TODO(slideshow-gsap): read playback.intervalSeconds once the recipe contract exposes it.
 registerRecipe("kenburns", (target, _config) => {
   if (Array.isArray(target)) {
     return gsap.fromTo(
