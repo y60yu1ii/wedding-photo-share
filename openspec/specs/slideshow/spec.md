@@ -337,17 +337,15 @@ The following table records the verifiable test inventory as of 2026-06-01. A `[
 | SLIDE-5 — Frame token resolution | `frameToken.test.ts` | n/a | n/a |
 | SLIDE-6 — Reduced-motion fallback | `slideshowTransition.test.ts` | n/a | `[GAP: no e2e with media query override]` |
 | SLIDE-7 — WebSocket live push | `[GAP: no test for ws handler in event page]` | `test/lambda/websocket.test.ts` (handler only) | `[GAP: no e2e]` |
-| SLIDE-8 — GSAP lifecycle hygiene | `[GAP: no test for context revert / killTweensOf]` | n/a | `[GAP: no e2e verifying tween cleanup on unmount]` |
+| SLIDE-8 — GSAP lifecycle hygiene | `eventPage.gsap.test.ts` (wiring) + `slideshowGsap.test.ts` (killTweensOf) | n/a | `frontend/tests/e2e/slideshow.spec.ts` |
 | ADMIN-SLIDE-1 — Editor load | `[GAP: no test for admin design page mount]` | `test/lambda/admin.test.ts` (GET template) | `[GAP: no e2e]` |
 | ADMIN-SLIDE-2 — Asset upload | `[GAP: no test for presign+confirm orchestration]` | `test/lambda/admin.test.ts` (presign/confirm routes only) | `[GAP: no e2e]` |
 | ADMIN-SLIDE-3 — Save / publish | `[GAP: no test for save flow]` | `test/lambda/admin.test.ts` (PUT template) | `[GAP: no e2e]` |
 | ADMIN-SLIDE-4 — Frame preset CRUD | `[GAP: no test for preset list mutations]` | `[GAP: not isolated from admin.test.ts]` | `[GAP: no e2e]` |
 
 ### Known gaps requiring follow-up
-- `[GAP] GSAP recipe unit tests` — add `frontend/tests/unit/slideshowGsapRecipes.test.ts` covering each of the 8 `TemplateTransition` recipes. Mock `gsap` and assert: (a) `gsap.fromTo` arg shape, (b) `gsap.timeline()` structure for composed recipes, (c) ease mapping per `Easing vocabulary`, (d) reduced-motion branch returns the deterministic opacity-fade recipe.
 - `[GAP] E2E coverage for slideshow playback` — add `frontend/tests/e2e/slideshow.spec.ts` covering SLIDE-2, SLIDE-3, SLIDE-4, SLIDE-6, SLIDE-7, SLIDE-8. Use `page.emulateMedia({ reducedMotion: "reduce" })` to drive the SLIDE-6 fallback.
 - `[GAP] E2E coverage for admin template editor` — add `frontend/tests/e2e/admin-template-editor.spec.ts` covering ADMIN-SLIDE-1..4.
-- `[GAP] GSAP lifecycle regression test` — verify that navigating away from a slideshow mid-kenburns leaves zero GSAP-internal tween references (use `gsap.globalTimeline.getChildren()` length snapshot before/after unmount).
 - `[GAP] Isolated `template.ts` test file` — current coverage is indirect via `test/lambda/admin.test.ts`; lift to a direct `test/lambda/template.test.ts` for `normalizeTemplate`, `validateTemplate`, `isTemplateTransition`, `makeAssetKey`.
 - `[GAP] `slideshow.test.ts` does not exercise the `ribbon-flow` / `kenburns` payload paths` — extend with a payload snapshot round-trip.
 - `[GAP] WebSocket reconnect/back-off not unit tested` — cover the 3000ms back-off and `eventId` param reattachment.
