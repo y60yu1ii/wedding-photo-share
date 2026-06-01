@@ -1,12 +1,8 @@
-import { describe, expect, it, vi, afterEach } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
   normalizeTransitionPreset,
   resolveTransitionConfig,
 } from "$lib/utils/slideshowTransition";
-
-afterEach(() => {
-  vi.unstubAllGlobals();
-});
 
 describe("slideshowTransition (post-GSAP migration)", () => {
   it("normalizes unknown transition preset to fade", () => {
