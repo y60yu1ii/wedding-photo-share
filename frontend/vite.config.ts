@@ -3,9 +3,20 @@ import { svelteTesting } from "@testing-library/svelte/vite";
 import { defineConfig } from "vite";
 import { resolve } from "path";
 
+const API_TARGET = "https://x5yiliyyb2.execute-api.ap-northeast-1.amazonaws.com";
+
 export default defineConfig({
   plugins: [sveltekit(), svelteTesting()],
-  server: { port: 5173 },
+  server: {
+    port: 5173,
+    proxy: {
+      "/slideshow": { target: API_TARGET, changeOrigin: true, secure: true },
+      "/admin": { target: API_TARGET, changeOrigin: true, secure: true },
+      "/wall": { target: API_TARGET, changeOrigin: true, secure: true },
+      "/myguest": { target: API_TARGET, changeOrigin: true, secure: true },
+      "/auth": { target: API_TARGET, changeOrigin: true, secure: true },
+    },
+  },
   resolve: {
     alias: {
       $lib: resolve(__dirname, "./src/lib"),
