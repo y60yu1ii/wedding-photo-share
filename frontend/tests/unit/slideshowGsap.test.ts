@@ -99,3 +99,63 @@ describe("simple recipes", () => {
     );
   });
 });
+
+describe("composed recipes", () => {
+  it("slide-parallax: builds a timeline with back + front layers", () => {
+    (gsap.timeline as any).mockClear();
+    (gsap.fromTo as any).mockClear();
+    const fakeTimeline = { to: vi.fn(), fromTo: vi.fn() };
+    (gsap.timeline as any).mockReturnValue(fakeTimeline);
+    const back = document.createElement("div");
+    const front = document.createElement("div");
+    runTransitionRecipe("slide-parallax", [back, front], {
+      durationMs: 600, easing: "ease-in-out", staggerMs: 0,
+    });
+    expect(gsap.timeline).toHaveBeenCalled();
+    expect(fakeTimeline.fromTo).toHaveBeenCalledWith(
+      back,
+      { xPercent: 30 },
+      expect.objectContaining({ xPercent: 0, duration: 0.6 }),
+    );
+    expect(fakeTimeline.fromTo).toHaveBeenCalledWith(
+      front,
+      { xPercent: 100 },
+      expect.objectContaining({ xPercent: 0, duration: 0.6 }),
+    );
+  });
+
+  it("stack-flip: rotateY 90->0 with perspective 1000", () => {
+    (gsap.set as any).mockClear();
+    (gsap.fromTo as any).mockClear();
+    const target = document.createElement("div");
+    runConfiguredRecipe("stack-flip", target, { transition: "stack-flip", intervalSeconds: 8, transitionSeconds: 0.5 });
+    expect(gsap.set).toHaveBeenCalledWith(target, expect.objectContaining({ transformPerspective: 1000 }));
+    expect(gsap.fromTo).toHaveBeenCalledWith(
+      target,
+      { rotateY: 90, opacity: 0 },
+      expect.objectContaining({ rotateY: 0, opacity: 1, ease: "power3.out" }),
+    );
+  });
+
+  it("kenburns: runs for the full interval with linear ease", () => {
+    (gsap.fromTo as any).mockClear();
+    const target = document.createElement("div");
+    runConfiguredRecipe("kenburns", target, { transition: "kenburns", intervalSeconds: 8, transitionSeconds: 0.5 });
+    expect(gsap.fromTo).toHaveBeenCalledWith(
+      target,
+      { scale: 1, x: 0, y: 0 },
+      expect.objectContaining({ scale: 1.12, x: -30, y: -15, duration: 8, ease: "none" }),
+    );
+  });
+
+  it("ribbon-flow: xPercent 30->-30 with elastic ease", () => {
+    (gsap.fromTo as any).mockClear();
+    const target = document.createElement("div");
+    runConfiguredRecipe("ribbon-flow", target, { transition: "ribbon-flow", intervalSeconds: 8, transitionSeconds: 0.8 });
+    expect(gsap.fromTo).toHaveBeenCalledWith(
+      target,
+      { xPercent: 30 },
+      expect.objectContaining({ xPercent: -30, ease: "elastic.out(1, 0.5)" }),
+    );
+  });
+});

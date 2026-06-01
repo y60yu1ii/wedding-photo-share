@@ -61,9 +61,9 @@ export function applyRecipe(
   toVars: gsap.TweenVars,
 ): gsap.core.Tween {
   return gsap.fromTo(target, fromVars, {
-    ...toVars,
     duration: durationSeconds(config),
     ease: toGsapEase(config.easing),
+    ...toVars,
   }) as gsap.core.Tween;
 }
 
@@ -81,4 +81,51 @@ registerRecipe("slide", (target, config) =>
 
 registerRecipe("fade-soft", (target, config) =>
   applyRecipe(target, config, { opacity: 0, y: 24 }, { opacity: 1, y: 0 }),
+);
+
+registerRecipe("slide-parallax", (target, config) => {
+  const layers = Array.isArray(target) ? target : [target];
+  const [back, front] = layers;
+  if (!back || !front) {
+    return applyRecipe(target, config, { opacity: 0 }, { opacity: 1 });
+  }
+  const tl = gsap.timeline() as gsap.core.Timeline;
+  tl.fromTo(
+    back,
+    { xPercent: 30 },
+    { xPercent: 0, duration: durationSeconds(config), ease: toGsapEase(config.easing) },
+  );
+  tl.fromTo(
+    front,
+    { xPercent: 100 },
+    { xPercent: 0, duration: durationSeconds(config), ease: toGsapEase(config.easing) },
+  );
+  return tl;
+});
+
+registerRecipe("stack-flip", (target, config) => {
+  if (Array.isArray(target)) {
+    return applyRecipe(target[0], config, { rotateY: 90, opacity: 0 }, { rotateY: 0, opacity: 1, ease: "power3.out" });
+  }
+  gsap.set(target, { transformPerspective: 1000 });
+  return applyRecipe(target, config, { rotateY: 90, opacity: 0 }, { rotateY: 0, opacity: 1, ease: "power3.out" });
+});
+
+registerRecipe("kenburns", (target, _config) => {
+  if (Array.isArray(target)) {
+    return gsap.fromTo(
+      target[0],
+      { scale: 1, x: 0, y: 0 },
+      { scale: 1.12, x: -30, y: -15, duration: 8, ease: "none" },
+    ) as gsap.core.Tween;
+  }
+  return gsap.fromTo(
+    target,
+    { scale: 1, x: 0, y: 0 },
+    { scale: 1.12, x: -30, y: -15, duration: 8, ease: "none" },
+  ) as gsap.core.Tween;
+});
+
+registerRecipe("ribbon-flow", (target, config) =>
+  applyRecipe(target, config, { xPercent: 30 }, { xPercent: -30, ease: "elastic.out(1, 0.5)" }),
 );
