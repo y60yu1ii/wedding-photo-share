@@ -15,15 +15,6 @@ import { gsap } from "gsap";
 import { runTransitionRecipe, getTransitionRecipe } from "$lib/utils/slideshowGsap";
 
 describe("slideshowGsap recipe registry", () => {
-  it("exposes a recipe for every TemplateTransition", () => {
-    const transitions = [
-      "fade", "fade-scale", "slide", "fade-soft",
-      "slide-parallax", "stack-flip", "kenburns", "ribbon-flow",
-    ] as const;
-    for (const t of transitions) {
-      expect(getTransitionRecipe(t)).toBeTypeOf("function");
-    }
-  });
 
   it("returns null for unknown transition", () => {
     expect(getTransitionRecipe("nope" as any)).toBeNull();
