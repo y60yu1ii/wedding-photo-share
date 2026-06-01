@@ -16,6 +16,7 @@ jest.mock("@aws-sdk/lib-dynamodb", () => ({
   QueryCommand: jest.fn().mockImplementation((i: any) => ({ input: i })),
   UpdateCommand: jest.fn().mockImplementation((i: any) => ({ input: i })),
   GetCommand: jest.fn().mockImplementation((i: any) => ({ input: i })),
+  ScanCommand: jest.fn().mockImplementation((i: any) => ({ input: i })),
 }));
 
 jest.mock("@aws-sdk/client-s3", () => ({
@@ -100,6 +101,7 @@ describe("POST /upload/confirm", () => {
   test("returns 200 pending for valid key and nickname (requiresReview = true)", async () => {
     mockDdbSend
       .mockResolvedValueOnce({ Items: [{ eventId: "EVENT-1" }] }) // validate key
+      .mockResolvedValueOnce({ Items: [] }) // existing guest photos
       .mockResolvedValueOnce({ Item: { PK: "EVENT-1", SK: "METADATA", requiresReview: true } }) // fetch event metadata
       .mockResolvedValueOnce({}) // update photo
       .mockResolvedValueOnce({ Items: [{ s3Key: "prod/EVENT-1/PHOTO#1.jpg" }] }) // fetch photo
@@ -122,6 +124,7 @@ describe("POST /upload/confirm", () => {
   test("returns 200 approved when requiresReview is false", async () => {
     mockDdbSend
       .mockResolvedValueOnce({ Items: [{ eventId: "EVENT-1" }] }) // validate key
+      .mockResolvedValueOnce({ Items: [] }) // existing guest photos
       .mockResolvedValueOnce({ Item: { PK: "EVENT-1", SK: "METADATA", requiresReview: false } }) // fetch event metadata
       .mockResolvedValueOnce({}) // update photo
       .mockResolvedValueOnce({ Items: [{ s3Key: "prod/EVENT-1/PHOTO#1.jpg" }] }) // fetch photo
@@ -159,6 +162,7 @@ describe("POST /upload/confirm", () => {
   test("accepts Chinese and English Unicode nicknames", async () => {
     mockDdbSend
       .mockResolvedValueOnce({ Items: [{ eventId: "EVENT-1" }] }) // validate key
+      .mockResolvedValueOnce({ Items: [] }) // existing guest photos
       .mockResolvedValueOnce({ Item: { PK: "EVENT-1", SK: "METADATA", requiresReview: false } }) // fetch event metadata
       .mockResolvedValueOnce({}) // update photo
       .mockResolvedValueOnce({ Items: [{ s3Key: "prod/EVENT-1/PHOTO#1.jpg" }] }) // fetch photo
@@ -181,6 +185,7 @@ describe("POST /upload/confirm", () => {
   test("saves greeting message in DynamoDB during confirmUpload", async () => {
     mockDdbSend
       .mockResolvedValueOnce({ Items: [{ eventId: "EVENT-1" }] }) // validate key
+      .mockResolvedValueOnce({ Items: [] }) // existing guest photos
       .mockResolvedValueOnce({ Item: { PK: "EVENT-1", SK: "METADATA", requiresReview: false } }) // fetch event metadata
       .mockResolvedValueOnce({}) // update photo
       .mockResolvedValueOnce({ Items: [{ s3Key: "prod/EVENT-1/PHOTO#1.jpg" }] }) // fetch photo
@@ -200,8 +205,49 @@ describe("POST /upload/confirm", () => {
     expect(result.statusCode).toBe(200);
     
     // The 3rd DynamoDB call is UpdateCommand. Verify it contains the greeting
-    const updateCall = mockDdbSend.mock.calls[2][0];
+    const updateCall = mockDdbSend.mock.calls[3][0];
     expect(updateCall.input.UpdateExpression).toContain("greeting = :g");
     expect(updateCall.input.ExpressionAttributeValues[":g"]).toBe("祝新婚快樂，白頭偕老！");
+  });
+
+  test("persists guestKey and representativePhotoId when present", async () => {
+    mockDdbSend
+      .mockResolvedValueOnce({ Items: [{ eventId: "EVENT-1" }] }) // validate key
+      .mockResolvedValueOnce({
+        Items: [
+          {
+            PK: "PHOTO#existing",
+            SK: "METADATA",
+            eventId: "EVENT-1",
+            guestKey: "guest-abc",
+            representativePhotoId: "PHOTO#existing",
+            confirmedAt: "2026-05-29T00:00:00.000Z",
+          },
+        ],
+      }) // existing guest photos
+      .mockResolvedValueOnce({ Item: { PK: "EVENT-1", SK: "METADATA", requiresReview: false } }) // event metadata
+      .mockResolvedValueOnce({}) // update photo
+      .mockResolvedValueOnce({ Items: [{ s3Key: "prod/EVENT-1/PHOTO#2.jpg" }] }) // fetch photo
+      .mockResolvedValueOnce({ Items: [] }); // query connections
+
+    const event = {
+      requestContext: { http: { method: "POST", path: "/upload/confirm" } },
+      queryStringParameters: { key: "GOODKEY" },
+      body: JSON.stringify({
+        eventId: "EVENT-1",
+        photoId: "PHOTO#2",
+        nickname: "Alice",
+        guestKey: "guest-abc",
+      }),
+    };
+    const result = await handler(event);
+    expect(result.statusCode).toBe(200);
+
+    const updateCall = mockDdbSend.mock.calls[3][0];
+    expect(updateCall.input.UpdateExpression).toContain("guestKey = :guestKey");
+    expect(updateCall.input.UpdateExpression).toContain("representativePhotoId = :representativePhotoId");
+    expect(updateCall.input.ExpressionAttributeValues[":guestKey"]).toBe("guest-abc");
+    expect(updateCall.input.ExpressionAttributeValues[":representativePhotoId"]).toBe("PHOTO#existing");
+    expect(mockDdbSend.mock.calls[1][0].input.IndexName).toBe("eventId-nickname-index");
   });
 });

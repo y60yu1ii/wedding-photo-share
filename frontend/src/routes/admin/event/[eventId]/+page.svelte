@@ -3,6 +3,7 @@
   import { page } from "$app/stores";
   import { goto } from "$app/navigation";
   import { auth, events } from "$lib/api/client";
+  import WallPolicySelect from "$lib/components/WallPolicySelect.svelte";
 
   const eventId = $derived($page.params.eventId ?? "");
   const wsUrl = import.meta.env.VITE_WS_URL;
@@ -11,6 +12,8 @@
   let photos = $state<any[]>([]);
   let loading = $state(true);
   let wsStatus = $state<'disconnected' | 'connecting' | 'connected'>('disconnected');
+  let wallPolicy = $state<'approved_only' | 'all_uploads'>("approved_only");
+  let loadingMore = $state(false);
   
   let socket: WebSocket;
 
@@ -27,7 +30,7 @@
     if (!wsUrl) return;
     wsStatus = 'connecting';
     try {
-      socket = new WebSocket(wsUrl);
+      socket = new WebSocket(`${wsUrl}?eventId=${encodeURIComponent(eventId)}`);
 
       socket.onopen = () => {
         wsStatus = 'connected';
@@ -61,14 +64,40 @@
 
   async function loadData() {
     loading = true;
+    loadingMore = false;
     try {
-      [event, photos] = await Promise.all([
+      const [loadedEvent, firstPage] = await Promise.all([
         events.get(eventId),
-        events.photos(eventId),
+        events.photosPage(eventId),
       ]);
-    } finally {
+      event = loadedEvent;
+      wallPolicy = event.wallPolicy ?? "approved_only";
+      photos = sortPhotosDesc(firstPage.photos ?? []);
       loading = false;
+      loadingMore = !!firstPage.nextCursor;
+      void loadMorePhotos(firstPage.nextCursor);
+    } finally {
+      if (loading) {
+        loading = false;
+      }
     }
+  }
+
+  async function loadMorePhotos(cursor?: string) {
+    let nextCursor = cursor;
+    while (nextCursor) {
+      const page = await events.photosPage(eventId, 40, nextCursor);
+      photos = sortPhotosDesc([...photos, ...(page.photos ?? [])]);
+      nextCursor = page.nextCursor;
+      loadingMore = !!nextCursor;
+    }
+    loadingMore = false;
+  }
+
+  function sortPhotosDesc(list: any[]) {
+    return [...list].sort((a, b) =>
+      (b.confirmedAt ?? b.uploadedAt ?? b.createdAt ?? "").localeCompare(a.confirmedAt ?? a.uploadedAt ?? a.createdAt ?? "")
+    );
   }
 
   async function approvePhoto(photoId: string) {
@@ -93,6 +122,16 @@
       event.requiresReview = { ...event, requiresReview: updatedValue }.requiresReview;
       // Also reload data or update event directly to make sure Svelte 5 states are properly reactively synced
       event = { ...event, requiresReview: updatedValue };
+    } catch (e: any) {
+      alert(e.message || "更新失敗");
+    }
+  }
+
+  async function saveWallPolicy(updatedValue: 'approved_only' | 'all_uploads') {
+    try {
+      await events.update(eventId, { wallPolicy: updatedValue });
+      wallPolicy = updatedValue;
+      event = { ...event, wallPolicy: updatedValue };
     } catch (e: any) {
       alert(e.message || "更新失敗");
     }
@@ -205,15 +244,28 @@
           {event.requiresReview ? "🔓 切換為免審核" : "🔒 切換為需審核"}
         </button>
       </div>
+
+      <div class="mt-4 pt-4 border-t border-[#e8d5c4] space-y-3">
+        <WallPolicySelect value={wallPolicy} onChange={saveWallPolicy} />
+        <a
+          href="/event/{eventId}/wall"
+          class="inline-flex items-center gap-2 rounded-full border border-[#e8d5c4] px-4 py-2 text-sm font-semibold text-[#3d2b1f] hover:bg-[#faf7f2] transition-colors"
+        >
+          打開簽到牆
+        </a>
+      </div>
     {:else}
       <p class="text-sm text-[#8b7355] text-center py-4">此婚禮尚無金鑰，請重新建立。</p>
     {/if}
   </div>
 
-  {#if loading}
-    <div class="text-center py-12 text-[#8b7355]">載入中...</div>
-  {:else}
-    {#if pending.length > 0}
+    {#if loading}
+      <div class="text-center py-12 text-[#8b7355]">載入中...</div>
+    {:else}
+      {#if loadingMore}
+        <p class="mb-3 text-center text-xs text-[#8b7355]">正在分批載入更多照片...</p>
+      {/if}
+      {#if pending.length > 0}
       <div class="bg-white rounded-2xl p-5 shadow-sm border border-[#e8d5c4] mb-4">
         <h2 class="text-sm font-semibold text-amber-600 mb-3">待審核 ({pending.length})</h2>
         <div class="grid grid-cols-2 gap-3">
@@ -223,6 +275,8 @@
                 <img
                   src={photo.presignedUrl ?? `https://picsum.photos/seed/${photo.PK}/200/200`}
                   alt={photo.nickname}
+                  loading="lazy"
+                  decoding="async"
                   class="w-full h-full object-cover"
                 />
                 <div class="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-xs py-1 px-2 truncate">
@@ -266,6 +320,8 @@
                 <img
                   src={photo.presignedUrl ?? `https://picsum.photos/seed/${photo.PK}/200/200`}
                   alt={photo.nickname}
+                  loading="lazy"
+                  decoding="async"
                   class="w-full h-full object-cover"
                 />
                 <div class="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-xs py-1 px-2 truncate">

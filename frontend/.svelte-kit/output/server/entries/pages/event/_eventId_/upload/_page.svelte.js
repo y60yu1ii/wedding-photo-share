@@ -9,7 +9,7 @@ import "../../../../../chunks/state.svelte.js";
 function _page($$renderer, $$props) {
   $$renderer.component(($$renderer2) => {
     var $$store_subs;
-    const eventId = derived(() => store_get($$store_subs ??= {}, "$page", page).params.eventId);
+    const eventId = derived(() => store_get($$store_subs ??= {}, "$page", page).params.eventId ?? "");
     let queue = [];
     let nickname = "";
     let greeting = "";

@@ -47180,7 +47180,7 @@ var require_dist_cjs33 = __commonJS({
       ];
     }).s("AmazonS3", "PutObjectAcl", {}).n("S3Client", "PutObjectAclCommand").sc(schemas_0.PutObjectAcl$).build() {
     };
-    var PutObjectCommand = class extends client.Command.classBuilder().ep({
+    var PutObjectCommand2 = class extends client.Command.classBuilder().ep({
       ...commonParams5,
       Bucket: { type: "contextParams", name: "Bucket" },
       Key: { type: "contextParams", name: "Key" }
@@ -47569,7 +47569,7 @@ var require_dist_cjs33 = __commonJS({
       PutBucketTaggingCommand,
       PutBucketVersioningCommand,
       PutBucketWebsiteCommand,
-      PutObjectCommand,
+      PutObjectCommand: PutObjectCommand2,
       PutObjectAclCommand,
       PutObjectLegalHoldCommand,
       PutObjectLockConfigurationCommand,
@@ -48162,7 +48162,7 @@ var require_dist_cjs33 = __commonJS({
     exports2.PutBucketVersioningCommand = PutBucketVersioningCommand;
     exports2.PutBucketWebsiteCommand = PutBucketWebsiteCommand;
     exports2.PutObjectAclCommand = PutObjectAclCommand;
-    exports2.PutObjectCommand = PutObjectCommand;
+    exports2.PutObjectCommand = PutObjectCommand2;
     exports2.PutObjectLegalHoldCommand = PutObjectLegalHoldCommand;
     exports2.PutObjectLockConfigurationCommand = PutObjectLockConfigurationCommand;
     exports2.PutObjectRetentionCommand = PutObjectRetentionCommand;
@@ -50418,6 +50418,159 @@ var SignJWT = class {
   }
 };
 
+// lambda/template.ts
+var DEFAULT_TRANSITION = "fade";
+var DEFAULT_INTERVAL_SECONDS = 8;
+var DEFAULT_TRANSITION_SECONDS = 0.5;
+var DEFAULT_CANVAS = { width: 1920, height: 1080 };
+var MAX_DIMENSION = 1e4;
+var MAX_LAYER_COUNT = 100;
+var MAX_ASSET_COUNT = 100;
+function defaultTemplate() {
+  return {
+    canvas: { ...DEFAULT_CANVAS },
+    playback: {
+      transition: DEFAULT_TRANSITION,
+      intervalSeconds: DEFAULT_INTERVAL_SECONDS,
+      transitionSeconds: DEFAULT_TRANSITION_SECONDS
+    },
+    layers: [],
+    assets: [],
+    updatedAt: (/* @__PURE__ */ new Date()).toISOString()
+  };
+}
+function isTemplateTransition(value) {
+  return value === "fade" || value === "fade-scale" || value === "slide";
+}
+function normalizeTemplate(input, fallback2 = defaultTemplate()) {
+  const canvas = {
+    width: safePositiveNumber(input?.canvas?.width, fallback2.canvas.width),
+    height: safePositiveNumber(input?.canvas?.height, fallback2.canvas.height)
+  };
+  const playback = {
+    transition: isTemplateTransition(input?.playback?.transition) ? input.playback.transition : fallback2.playback.transition,
+    intervalSeconds: safePositiveNumber(input?.playback?.intervalSeconds, fallback2.playback.intervalSeconds),
+    transitionSeconds: safePositiveNumber(
+      input?.playback?.transitionSeconds,
+      fallback2.playback.transitionSeconds
+    )
+  };
+  const layers = Array.isArray(input?.layers) ? input.layers.slice(0, MAX_LAYER_COUNT).map(normalizeLayer) : fallback2.layers;
+  const assets = Array.isArray(input?.assets) ? input.assets.slice(0, MAX_ASSET_COUNT).map(normalizeAsset) : fallback2.assets;
+  return {
+    canvas,
+    playback,
+    layers,
+    assets,
+    updatedAt: typeof input?.updatedAt === "string" ? input.updatedAt : fallback2.updatedAt
+  };
+}
+function validateTemplate(template) {
+  if (!Number.isFinite(template.canvas.width) || !Number.isFinite(template.canvas.height)) {
+    throw new Error("Invalid template canvas");
+  }
+  if (template.canvas.width <= 0 || template.canvas.height <= 0) {
+    throw new Error("Invalid template canvas");
+  }
+  if (template.canvas.width > MAX_DIMENSION || template.canvas.height > MAX_DIMENSION) {
+    throw new Error("Invalid template canvas");
+  }
+  if (!isTemplateTransition(template.playback.transition)) {
+    throw new Error("Invalid template transition");
+  }
+  if (!Number.isFinite(template.playback.intervalSeconds) || template.playback.intervalSeconds <= 0) {
+    throw new Error("Invalid template interval");
+  }
+  if (!Number.isFinite(template.playback.transitionSeconds) || template.playback.transitionSeconds < 0) {
+    throw new Error("Invalid template transition duration");
+  }
+  if (template.layers.length > MAX_LAYER_COUNT) {
+    throw new Error("Too many template layers");
+  }
+  if (template.assets.length > MAX_ASSET_COUNT) {
+    throw new Error("Too many template assets");
+  }
+  for (const layer of template.layers) {
+    if (!layer.id || !layer.type) {
+      throw new Error("Invalid template layer");
+    }
+    if (!Number.isFinite(layer.x) || !Number.isFinite(layer.y)) {
+      throw new Error("Invalid template layer");
+    }
+    if (!Number.isFinite(layer.width) || !Number.isFinite(layer.height)) {
+      throw new Error("Invalid template layer");
+    }
+    if (layer.width <= 0 || layer.height <= 0) {
+      throw new Error("Invalid template layer");
+    }
+    if (layer.width > MAX_DIMENSION || layer.height > MAX_DIMENSION) {
+      throw new Error("Invalid template layer");
+    }
+    if (!Number.isFinite(layer.rotation)) {
+      throw new Error("Invalid template layer");
+    }
+    if (!Number.isFinite(layer.zIndex)) {
+      throw new Error("Invalid template layer");
+    }
+    if (layer.data?.opacity !== void 0 && (layer.data.opacity < 0 || layer.data.opacity > 1)) {
+      throw new Error("Invalid template layer");
+    }
+  }
+}
+function sanitizeAssetFilename(filename) {
+  return filename.replace(/[^a-zA-Z0-9._-]+/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
+}
+function makeAssetKey(eventId, assetId, filename) {
+  return `templates/${eventId}/${assetId}/${sanitizeAssetFilename(filename) || "asset"}`;
+}
+function safePositiveNumber(value, fallback2) {
+  const n2 = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(n2) && n2 > 0 ? n2 : fallback2;
+}
+function normalizeLayer(input) {
+  return {
+    id: typeof input?.id === "string" && input.id ? input.id : crypto.randomUUID(),
+    type: input?.type === "text" || input?.type === "decorative-asset" ? input.type : "photo-frame",
+    x: safeNumber(input?.x),
+    y: safeNumber(input?.y),
+    width: safePositiveNumber(input?.width, 320),
+    height: safePositiveNumber(input?.height, 240),
+    rotation: safeNumber(input?.rotation),
+    zIndex: safeNumber(input?.zIndex),
+    locked: Boolean(input?.locked),
+    data: normalizeLayerData(input?.data)
+  };
+}
+function normalizeAsset(input) {
+  return {
+    assetId: typeof input?.assetId === "string" && input.assetId ? input.assetId : crypto.randomUUID(),
+    filename: typeof input?.filename === "string" && input.filename ? input.filename : "asset",
+    contentType: typeof input?.contentType === "string" && input.contentType ? input.contentType : "image/png",
+    key: typeof input?.key === "string" && input.key ? input.key : "",
+    uploadedAt: typeof input?.uploadedAt === "string" ? input.uploadedAt : (/* @__PURE__ */ new Date()).toISOString()
+  };
+}
+function normalizeLayerData(input) {
+  return {
+    text: typeof input?.text === "string" ? input.text : void 0,
+    fontSize: typeof input?.fontSize === "number" ? input.fontSize : void 0,
+    color: typeof input?.color === "string" ? input.color : void 0,
+    align: input?.align === "left" || input?.align === "center" || input?.align === "right" ? input.align : void 0,
+    assetId: typeof input?.assetId === "string" ? input.assetId : void 0,
+    assetKey: typeof input?.assetKey === "string" ? input.assetKey : void 0,
+    assetFit: input?.assetFit === "cover" || input?.assetFit === "contain" ? input.assetFit : void 0,
+    opacity: typeof input?.opacity === "number" ? input.opacity : void 0,
+    borderWidth: typeof input?.borderWidth === "number" ? input.borderWidth : void 0,
+    borderColor: typeof input?.borderColor === "string" ? input.borderColor : void 0,
+    borderRadius: typeof input?.borderRadius === "number" ? input.borderRadius : void 0,
+    backgroundColor: typeof input?.backgroundColor === "string" ? input.backgroundColor : void 0
+  };
+}
+function safeNumber(value) {
+  const n2 = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(n2) ? n2 : 0;
+}
+
 // lambda/admin/index.ts
 var dynamo = import_lib_dynamodb.DynamoDBDocumentClient.from(new import_client_dynamodb.DynamoDBClient({}));
 var secrets = new import_client_secrets_manager.SecretsManagerClient({});
@@ -50463,6 +50616,7 @@ async function listEvents() {
 async function createEvent(body) {
   const PK = `EVENT-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
   const now = (/* @__PURE__ */ new Date()).toISOString();
+  const templateDraft = defaultTemplate();
   const uploadKey = generateKey(16);
   const showKey = generateKey(16);
   const uploadKeyHash = await sha256(uploadKey);
@@ -50476,6 +50630,10 @@ async function createEvent(body) {
     createdAt: now,
     requiresReview: body.requiresReview ?? true,
     // default to true
+    wallPolicy: "approved_only",
+    templateDraft,
+    templatePublished: null,
+    templateUpdatedAt: now,
     // Store plaintext keys for admin retrieval (hashes still used for validation)
     uploadKey,
     showKey,
@@ -50508,6 +50666,103 @@ async function createEvent(body) {
     }))
   ]);
   return { PK, name: body.name, date: body.date, status: "active", uploadKey, showKey, createdAt: now };
+}
+async function getEventTemplateRecord(eventId) {
+  const resp = await dynamo.send(
+    new import_lib_dynamodb.GetCommand({ TableName: process.env.EVENTS_TABLE, Key: { PK: eventId, SK: "METADATA" } })
+  );
+  if (!resp.Item) return null;
+  const draft = normalizeTemplate(resp.Item.templateDraft ?? resp.Item.template ?? resp.Item.templatePublished ?? defaultTemplate());
+  const published = resp.Item.templatePublished ? normalizeTemplate(resp.Item.templatePublished, draft) : resp.Item.template ? normalizeTemplate(resp.Item.template, draft) : null;
+  return {
+    ...resp.Item,
+    templateDraft: draft,
+    templatePublished: published
+  };
+}
+async function presignTemplateAssetGet(s3Key) {
+  return (0, import_s3_request_presigner.getSignedUrl)(
+    s3,
+    new import_client_s3.GetObjectCommand({
+      Bucket: process.env.PHOTO_BUCKET,
+      Key: s3Key
+    }),
+    { expiresIn: 900 }
+  );
+}
+async function decorateTemplateAssets(template) {
+  const assets = await Promise.all(
+    (template.assets ?? []).map(async (asset) => ({
+      ...asset,
+      previewUrl: asset.key ? await presignTemplateAssetGet(asset.key) : void 0
+    }))
+  );
+  return { ...template, assets };
+}
+async function persistTemplate(eventId, templateBody, publish = false) {
+  const record = await getEventTemplateRecord(eventId);
+  if (!record) return null;
+  const baseTemplate = normalizeTemplate(templateBody, record.templateDraft ?? defaultTemplate());
+  validateTemplate(baseTemplate);
+  const now = (/* @__PURE__ */ new Date()).toISOString();
+  const updateExpression = publish ? "SET templateDraft = :draft, templatePublished = :published, templateUpdatedAt = :updatedAt" : "SET templateDraft = :draft, templateUpdatedAt = :updatedAt";
+  const expressionValues = {
+    ":draft": { ...baseTemplate, updatedAt: now },
+    ":updatedAt": now
+  };
+  if (publish) {
+    expressionValues[":published"] = { ...baseTemplate, updatedAt: now };
+  }
+  await dynamo.send(
+    new import_lib_dynamodb.UpdateCommand({
+      TableName: process.env.EVENTS_TABLE,
+      Key: { PK: eventId, SK: "METADATA" },
+      UpdateExpression: updateExpression,
+      ExpressionAttributeValues: expressionValues
+    })
+  );
+  return {
+    template: await decorateTemplateAssets({ ...baseTemplate, updatedAt: now }),
+    publishedTemplate: publish ? await decorateTemplateAssets({ ...baseTemplate, updatedAt: now }) : record.templatePublished ? await decorateTemplateAssets(record.templatePublished) : null
+  };
+}
+async function addTemplateAsset(eventId, body) {
+  const record = await getEventTemplateRecord(eventId);
+  if (!record) return null;
+  const assetId = typeof body.assetId === "string" && body.assetId ? body.assetId : crypto.randomUUID();
+  const filename = typeof body.filename === "string" && body.filename ? body.filename : "asset";
+  const contentType = typeof body.contentType === "string" && body.contentType ? body.contentType : "image/png";
+  if (!contentType.startsWith("image/")) {
+    throw new Error("Invalid asset type");
+  }
+  const key = typeof body.assetKey === "string" && body.assetKey ? body.assetKey : makeAssetKey(eventId, assetId, filename);
+  const uploadedAt = (/* @__PURE__ */ new Date()).toISOString();
+  const asset = { assetId, filename, contentType, key, uploadedAt };
+  const draft = normalizeTemplate(record.templateDraft ?? defaultTemplate());
+  const nextDraft = {
+    ...draft,
+    assets: [...draft.assets.filter((item) => item.assetId !== assetId), asset],
+    updatedAt: uploadedAt
+  };
+  validateTemplate(nextDraft);
+  await dynamo.send(
+    new import_lib_dynamodb.UpdateCommand({
+      TableName: process.env.EVENTS_TABLE,
+      Key: { PK: eventId, SK: "METADATA" },
+      UpdateExpression: "SET templateDraft = :draft, templateUpdatedAt = :updatedAt",
+      ExpressionAttributeValues: {
+        ":draft": nextDraft,
+        ":updatedAt": uploadedAt
+      }
+    })
+  );
+  return {
+    asset: {
+      ...asset,
+      previewUrl: await presignTemplateAssetGet(asset.key)
+    },
+    template: await decorateTemplateAssets(nextDraft)
+  };
 }
 async function presignPhoto(s3Key) {
   const cmd = new import_client_s3.GetObjectCommand({
@@ -50547,6 +50802,7 @@ async function getEventWithKeys(eventId) {
     showKey: item.showKey ?? "[\u5DF2\u7522\u751F\uFF0C\u8ACB\u65BC\u5EFA\u7ACB\u6642\u8907\u88FD]",
     requiresReview: item.requiresReview !== false,
     // default to true
+    wallPolicy: item.wallPolicy === "all_uploads" ? "all_uploads" : "approved_only",
     keyNote: item.uploadKey && item.showKey ? null : "\u91D1\u9470\u50C5\u65BC\u5EFA\u7ACB\u6642\u986F\u793A\uFF0C\u8ACB\u8907\u88FD\u4E26\u59A5\u5584\u4FDD\u5B58\u3002\u82E5\u9700\u91CD\u8A2D\uFF0C\u8ACB\u522A\u9664\u5A5A\u79AE\u5F8C\u91CD\u65B0\u5EFA\u7ACB\u3002"
   };
 }
@@ -50755,6 +51011,11 @@ async function updateEvent(eventId, body) {
     attrNames["#r"] = "requiresReview";
     attrValues[":reqRev"] = body.requiresReview;
   }
+  if (body.wallPolicy !== void 0) {
+    updates.push("#w = :wallPolicy");
+    attrNames["#w"] = "wallPolicy";
+    attrValues[":wallPolicy"] = body.wallPolicy;
+  }
   if (updates.length === 0) return { success: true };
   await dynamo.send(new import_lib_dynamodb.UpdateCommand({
     TableName: process.env.EVENTS_TABLE,
@@ -50813,6 +51074,64 @@ async function handler(event) {
       }
       const newEvent = await createEvent(body);
       return res(201, newEvent);
+    }
+    const templateMatch = path.match(/^\/admin\/events\/([^/]+)\/template$/);
+    if (templateMatch && method === "GET") {
+      const eventId = decodeURIComponent(templateMatch[1]);
+      const record = await getEventTemplateRecord(eventId);
+      if (!record) return res(404, { error: "Not found" });
+      const template = await decorateTemplateAssets(record.templateDraft ?? defaultTemplate());
+      const publishedTemplate = record.templatePublished ? await decorateTemplateAssets(record.templatePublished) : null;
+      return res(200, {
+        eventId,
+        template,
+        publishedTemplate,
+        published: !!record.templatePublished
+      });
+    }
+    if (templateMatch && method === "PUT") {
+      const eventId = decodeURIComponent(templateMatch[1]);
+      const body = JSON.parse(event.body ?? "{}");
+      const result = await persistTemplate(eventId, body.template ?? body, Boolean(body.publish));
+      if (!result) return res(404, { error: "Not found" });
+      return res(200, {
+        eventId,
+        ...result,
+        published: Boolean(body.publish)
+      });
+    }
+    const assetPresignMatch = path.match(/^\/admin\/events\/([^/]+)\/template-assets\/presign$/);
+    if (assetPresignMatch && method === "POST") {
+      const eventId = decodeURIComponent(assetPresignMatch[1]);
+      const record = await getEventTemplateRecord(eventId);
+      if (!record) return res(404, { error: "Not found" });
+      const body = JSON.parse(event.body ?? "{}");
+      if (!body.filename || !body.contentType) {
+        return res(400, { error: "missing fields" });
+      }
+      if (!String(body.contentType).startsWith("image/")) {
+        return res(400, { error: "Invalid asset type" });
+      }
+      const assetId = crypto.randomUUID();
+      const assetKey = makeAssetKey(eventId, assetId, body.filename);
+      const uploadUrl = await (0, import_s3_request_presigner.getSignedUrl)(
+        s3,
+        new import_client_s3.PutObjectCommand({
+          Bucket: process.env.PHOTO_BUCKET,
+          Key: assetKey,
+          ContentType: body.contentType
+        }),
+        { expiresIn: 900 }
+      );
+      return res(200, { assetId, assetKey, uploadUrl });
+    }
+    const assetConfirmMatch = path.match(/^\/admin\/events\/([^/]+)\/template-assets\/confirm$/);
+    if (assetConfirmMatch && method === "POST") {
+      const eventId = decodeURIComponent(assetConfirmMatch[1]);
+      const body = JSON.parse(event.body ?? "{}");
+      const result = await addTemplateAsset(eventId, body);
+      if (!result) return res(404, { error: "Not found" });
+      return res(200, { eventId, ...result });
     }
     if (path.match(/^\/admin\/events\/[^/]+$/) && method === "GET") {
       const eventId = decodeURIComponent(path.split("/")[3]);

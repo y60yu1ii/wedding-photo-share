@@ -6,10 +6,13 @@
   },
   "scripts": {
     "build": "tsc",
+    "build:frontend": "npm --prefix frontend run build",
     "watch": "tsc -w",
     "cdk": "cdk",
     "synth": "cdk synth",
     "deploy": "npm run build && cdk deploy --profile yyl --outputs-file cdk-outputs.json --require-approval never",
+    "deploy:frontend": "npm run build:frontend && npm run deploy",
+    "deploy:frontend-only": "node scripts/deploy-frontend-only.mjs",
     "destroy": "cdk destroy --profile yyl --force",
     "check": "npm --prefix frontend run check && npm run build",
     "test": "npm run test:unit -- --runInBand",

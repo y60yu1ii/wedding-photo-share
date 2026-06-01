@@ -11,7 +11,9 @@
   import "@xyflow/svelte/dist/style.css";
   import { auth, events, templates } from "$lib/api/client";
   import TemplateLayerNode from "$lib/components/TemplateLayerNode.svelte";
-  import type { EventTemplate, TemplateAsset, TemplateLayer, TemplateTransition } from "$lib/api/types";
+  import type { EventTemplate, FramePreset, FrameToken, TemplateAsset, TemplateLayer, TemplateTransition, TransitionEasing } from "$lib/api/types";
+  import { DEFAULT_FRAME_TOKEN, defaultFramePresets, frameTokenToInlineStyle, resolveLayerFrameToken } from "$lib/utils/frameToken";
+  import { normalizeTransitionPreset } from "$lib/utils/slideshowTransition";
   import type { Node } from "@xyflow/svelte";
 
   const eventId = $derived($page.params.eventId ?? "");
@@ -21,6 +23,23 @@
     { label: "1:1", width: 1080, height: 1080 },
     { label: "9:16", width: 1080, height: 1920 },
   ] as const;
+  const transitionOptions: Array<{ value: TemplateTransition; label: string }> = [
+    { value: "fade", label: "淡入淡出" },
+    { value: "fade-scale", label: "淡入縮放" },
+    { value: "slide", label: "滑動" },
+    { value: "fade-soft", label: "柔和淡入" },
+    { value: "slide-parallax", label: "視差滑動" },
+    { value: "stack-flip", label: "堆疊翻頁" },
+    { value: "kenburns", label: "Ken Burns" },
+    { value: "ribbon-flow", label: "緞帶流動" },
+  ];
+  const transitionEasingOptions: Array<{ value: TransitionEasing; label: string }> = [
+    { value: "ease", label: "ease" },
+    { value: "ease-in-out", label: "ease-in-out" },
+    { value: "ease-out", label: "ease-out" },
+    { value: "ease-in", label: "ease-in" },
+    { value: "linear", label: "linear" },
+  ];
 
   type TemplateFlowNode = Node<{ layer: TemplateLayer; assetPreviewUrl?: string }, "template-layer">;
 
@@ -36,6 +55,7 @@
   let selectedNodeId = $state<string | null>(null);
   let previewPhotoIndex = $state(0);
   let assetFileInput = $state<HTMLInputElement | null>(null);
+  let framePresetDraftName = $state("自訂相框");
 
   const nodeTypes = {
     "template-layer": TemplateLayerNode,
@@ -60,8 +80,9 @@
       event = eventData;
       photos = photoList;
       template = templateResult.template;
+      template = ensureFramePresets(template);
       publishedTemplate = templateResult.publishedTemplate ?? null;
-      nodes = templateToNodes(templateResult.template);
+      nodes = templateToNodes(template);
       previewPhotoIndex = 0;
       selectedNodeId = nodes[0]?.id ?? null;
     } catch (err: any) {
@@ -92,6 +113,11 @@
       });
   }
 
+  function ensureFramePresets(source: EventTemplate): EventTemplate {
+    if (source.framePresets && source.framePresets.length > 0) return source;
+    return { ...source, framePresets: defaultFramePresets() };
+  }
+
   function nodeToLayer(node: TemplateFlowNode): TemplateLayer {
     const fallback = node.data.layer;
     return {
@@ -112,6 +138,7 @@
     return {
       ...template,
       layers: nextNodes.map(nodeToLayer),
+      framePresets: template.framePresets ?? defaultFramePresets(),
       updatedAt: new Date().toISOString(),
     };
   }
@@ -119,6 +146,103 @@
   function updateTemplateFromNodes(nextNodes: TemplateFlowNode[] = nodes) {
     const next = rebuildTemplateFromNodes(nextNodes);
     if (next) template = next;
+  }
+
+  function framePresets(): FramePreset[] {
+    return template?.framePresets ?? defaultFramePresets();
+  }
+
+  function selectedFrameToken(layer: TemplateLayer): FrameToken {
+    return resolveLayerFrameToken(layer.data, framePresets());
+  }
+
+  function updateSelectedFrameToken(mutator: (token: FrameToken) => FrameToken) {
+    if (!selectedNode || selectedNode.data.layer.type !== "photo-frame") return;
+    const nextToken = mutator(selectedFrameToken(selectedNode.data.layer));
+    updateSelectedNode((current) => ({
+      ...current,
+      data: {
+        ...current.data,
+        frameTokenOverride: {
+          borderWidth: nextToken.borderWidth,
+          borderRadius: nextToken.borderRadius,
+          padding: nextToken.padding,
+          shadow: nextToken.shadow,
+          color: nextToken.color,
+          backgroundColor: nextToken.backgroundColor,
+          gradient: nextToken.gradient,
+          doubleBorder: nextToken.doubleBorder,
+          texture: nextToken.texture,
+          glow: nextToken.glow,
+        },
+        borderWidth: nextToken.borderWidth,
+        borderRadius: nextToken.borderRadius,
+        borderColor: nextToken.color,
+        backgroundColor: nextToken.backgroundColor,
+      },
+    }));
+  }
+
+  function updateFramePresets(nextPresets: FramePreset[]) {
+    if (!template) return;
+    template = { ...template, framePresets: nextPresets, updatedAt: new Date().toISOString() };
+  }
+
+  function applyPresetToSelectedLayer(presetId: string) {
+    if (!selectedNode || selectedNode.data.layer.type !== "photo-frame") return;
+    const preset = framePresets().find((item) => item.id === presetId);
+    if (!preset) return;
+    updateSelectedNode((current) => ({
+      ...current,
+      data: {
+        ...current.data,
+        framePresetId: preset.id,
+        frameTokenOverride: undefined,
+        borderWidth: preset.token.borderWidth,
+        borderRadius: preset.token.borderRadius,
+        borderColor: preset.token.color,
+        backgroundColor: preset.token.backgroundColor,
+      },
+    }));
+  }
+
+  function applyPresetToAllFrames(presetId: string) {
+    const preset = framePresets().find((item) => item.id === presetId);
+    if (!preset) return;
+    nodes = nodes.map((node) => {
+      if (node.data.layer.type !== "photo-frame") return node;
+      return {
+        ...node,
+        data: {
+          ...node.data,
+          layer: {
+            ...node.data.layer,
+            data: {
+              ...node.data.layer.data,
+              framePresetId: preset.id,
+              frameTokenOverride: undefined,
+              borderWidth: preset.token.borderWidth,
+              borderRadius: preset.token.borderRadius,
+              borderColor: preset.token.color,
+              backgroundColor: preset.token.backgroundColor,
+            },
+          },
+        },
+      };
+    });
+    updateTemplateFromNodes(nodes);
+  }
+
+  function saveCurrentFrameAsPreset() {
+    if (!selectedNode || selectedNode.data.layer.type !== "photo-frame") return;
+    const token = selectedFrameToken(selectedNode.data.layer);
+    const preset: FramePreset = {
+      id: crypto.randomUUID(),
+      name: framePresetDraftName.trim() || "自訂相框",
+      token,
+    };
+    updateFramePresets([...framePresets(), preset]);
+    applyPresetToSelectedLayer(preset.id);
   }
 
   function findNode(id: string | null) {
@@ -152,7 +276,7 @@
   }
 
   function transitionLabel(value: TemplateTransition) {
-    return value === "fade-scale" ? "fade-scale" : value;
+    return transitionOptions.find((option) => option.value === value)?.label ?? value;
   }
 
   function addLayer(type: TemplateLayer["type"]) {
@@ -177,7 +301,14 @@
           ? { text: "新文字", fontSize: 28, color: "#ffffff", align: "center" }
           : type === "decorative-asset"
             ? { assetFit: "contain", opacity: 1, assetId: "", assetKey: "" }
-            : { borderWidth: 10, borderColor: "#ffffff", borderRadius: 28, backgroundColor: "rgba(255,255,255,0.08)" },
+            : {
+                framePresetId: framePresets()[0]?.id,
+                borderWidth: DEFAULT_FRAME_TOKEN.borderWidth,
+                borderColor: DEFAULT_FRAME_TOKEN.color,
+                borderRadius: DEFAULT_FRAME_TOKEN.borderRadius,
+                backgroundColor: DEFAULT_FRAME_TOKEN.backgroundColor,
+                frameTokenOverride: { ...DEFAULT_FRAME_TOKEN },
+              },
     };
     const nextNode: TemplateFlowNode = {
       id: nextId,
@@ -239,12 +370,13 @@
         xhr.send(file);
       });
       const result = await templates.confirmAsset(eventId, assetId, file.name, file.type || "image/png", assetKey);
-      template = result.template;
+      const ensuredTemplate = ensureFramePresets(result.template);
+      template = ensuredTemplate;
       nodes = nodes.map((node) => ({
         ...node,
         data: {
           ...node.data,
-          assetPreviewUrl: result.template.assets.find((asset) => asset.assetId === node.data.layer.data.assetId || asset.key === node.data.layer.data.assetKey)?.previewUrl,
+          assetPreviewUrl: ensuredTemplate.assets.find((asset) => asset.assetId === node.data.layer.data.assetId || asset.key === node.data.layer.data.assetKey)?.previewUrl,
         },
       }));
       updateTemplateFromNodes(nodes);
@@ -265,9 +397,9 @@
       const payload = rebuildTemplateFromNodes(nodes);
       if (!payload) return;
       const result = await templates.save(eventId, payload, publish);
-      template = result.template;
+      template = ensureFramePresets(result.template);
       publishedTemplate = result.publishedTemplate ?? (publish ? result.template : publishedTemplate);
-      nodes = templateToNodes(result.template);
+      nodes = templateToNodes(template);
       selectedNodeId = nodes[0]?.id ?? null;
       notice = publish ? "模板已發布" : "模板已儲存";
     } catch (err: any) {
@@ -328,7 +460,11 @@
 
   function updatePlaybackTransition(value: TemplateTransition) {
     if (!template) return;
-    template = { ...template, playback: { ...template.playback, transition: value }, updatedAt: new Date().toISOString() };
+    template = {
+      ...template,
+      playback: { ...template.playback, transition: normalizeTransitionPreset(value) },
+      updatedAt: new Date().toISOString(),
+    };
   }
 
   function updatePlaybackInterval(value: number) {
@@ -339,6 +475,51 @@
   function updatePlaybackTransitionSeconds(value: number) {
     if (!template) return;
     template = { ...template, playback: { ...template.playback, transitionSeconds: value }, updatedAt: new Date().toISOString() };
+  }
+
+  function updateTransitionDurationMs(value: number) {
+    if (!template) return;
+    template = {
+      ...template,
+      playback: {
+        ...template.playback,
+        transitionConfig: {
+          ...template.playback.transitionConfig,
+          durationMs: value,
+        },
+      },
+      updatedAt: new Date().toISOString(),
+    };
+  }
+
+  function updateTransitionEasing(value: TransitionEasing) {
+    if (!template) return;
+    template = {
+      ...template,
+      playback: {
+        ...template.playback,
+        transitionConfig: {
+          ...template.playback.transitionConfig,
+          easing: value,
+        },
+      },
+      updatedAt: new Date().toISOString(),
+    };
+  }
+
+  function updateTransitionStaggerMs(value: number) {
+    if (!template) return;
+    template = {
+      ...template,
+      playback: {
+        ...template.playback,
+        transitionConfig: {
+          ...template.playback.transitionConfig,
+          staggerMs: value,
+        },
+      },
+      updatedAt: new Date().toISOString(),
+    };
   }
 </script>
 
@@ -426,9 +607,9 @@
                 onchange={(e) => updatePlaybackTransition((e.currentTarget as HTMLSelectElement).value as TemplateTransition)}
                 class="w-full px-3 py-2 rounded-lg border border-[#e8d5c4] bg-white"
               >
-                <option value="fade">淡入淡出</option>
-                <option value="fade-scale">淡入縮放</option>
-                <option value="slide">滑動</option>
+                {#each transitionOptions as option}
+                  <option value={option.value}>{option.label}</option>
+                {/each}
               </select>
             </label>
             <label class="space-y-1">
@@ -443,17 +624,55 @@
               />
             </label>
           </div>
+          <div class="mt-3 grid gap-3 md:grid-cols-3">
+            <label class="space-y-1">
+              <span class="text-xs text-[#8b7355] font-semibold">轉場時間(秒)</span>
+              <input
+                type="number"
+                min="0"
+                max="5"
+                step="0.1"
+                value={template.playback.transitionSeconds}
+                oninput={(e) => updatePlaybackTransitionSeconds(Number((e.currentTarget as HTMLInputElement).value))}
+                class="w-full px-3 py-2 rounded-lg border border-[#e8d5c4] bg-white"
+              />
+            </label>
+            <label class="space-y-1">
+              <span class="text-xs text-[#8b7355] font-semibold">Duration (ms)</span>
+              <input
+                type="number"
+                min="120"
+                max="5000"
+                step="10"
+                value={template.playback.transitionConfig?.durationMs ?? Math.round(template.playback.transitionSeconds * 1000)}
+                oninput={(e) => updateTransitionDurationMs(Number((e.currentTarget as HTMLInputElement).value))}
+                class="w-full px-3 py-2 rounded-lg border border-[#e8d5c4] bg-white"
+              />
+            </label>
+            <label class="space-y-1">
+              <span class="text-xs text-[#8b7355] font-semibold">Stagger (ms)</span>
+              <input
+                type="number"
+                min="0"
+                max="2000"
+                step="10"
+                value={template.playback.transitionConfig?.staggerMs ?? 0}
+                oninput={(e) => updateTransitionStaggerMs(Number((e.currentTarget as HTMLInputElement).value))}
+                class="w-full px-3 py-2 rounded-lg border border-[#e8d5c4] bg-white"
+              />
+            </label>
+          </div>
           <label class="block mt-3 space-y-1 max-w-sm">
-            <span class="text-xs text-[#8b7355] font-semibold">轉場時間(秒)</span>
-            <input
-              type="number"
-              min="0"
-              max="5"
-              step="0.1"
-              value={template.playback.transitionSeconds}
-              oninput={(e) => updatePlaybackTransitionSeconds(Number((e.currentTarget as HTMLInputElement).value))}
+            <span class="text-xs text-[#8b7355] font-semibold">Easing</span>
+            <select
+              value={template.playback.transitionConfig?.easing ?? "ease"}
+              onchange={(e) => updateTransitionEasing((e.currentTarget as HTMLSelectElement).value as TransitionEasing)}
               class="w-full px-3 py-2 rounded-lg border border-[#e8d5c4] bg-white"
-            />
+            >
+              {#each transitionEasingOptions as option}
+                <option value={option.value}>{option.label}</option>
+              {/each}
+            </select>
           </label>
         </div>
 
@@ -523,7 +742,7 @@
                       <span style={`font-size:${layer.data.fontSize ?? 24}px;text-align:${layer.data.align ?? "center"};`}>{layer.data.text ?? "文字"}</span>
                     </div>
                   {:else}
-                    <div class="w-full h-full border-2 border-dashed rounded-[inherit]" style={`border-color:${layer.data.borderColor ?? "#f3d6a1"};border-width:${layer.data.borderWidth ?? 8}px;border-radius:${layer.data.borderRadius ?? 24}px;background:${layer.data.backgroundColor ?? "rgba(255,255,255,0.08)"};`}></div>
+                    <div class="w-full h-full rounded-[inherit]" style={frameTokenToInlineStyle(resolveLayerFrameToken(layer.data, framePresets()))}></div>
                   {/if}
                 </div>
               {/each}
@@ -699,19 +918,71 @@
           {/if}
 
           {#if layer.type === "photo-frame"}
-            <div class="mt-4 space-y-3 grid gap-3 md:grid-cols-3">
-              <label class="space-y-1">
-                <span class="text-xs text-[#8b7355] font-semibold">邊框寬度</span>
-                <input type="number" value={layer.data.borderWidth ?? 8} oninput={(e) => updateSelectedNode((current) => ({ ...current, data: { ...current.data, borderWidth: Number((e.currentTarget as HTMLInputElement).value) } }))} class="w-full px-3 py-2 rounded-lg border border-[#e8d5c4]" />
-              </label>
-              <label class="space-y-1">
-                <span class="text-xs text-[#8b7355] font-semibold">邊框顏色</span>
-                <input type="text" value={layer.data.borderColor ?? "#ffffff"} oninput={(e) => updateSelectedNode((current) => ({ ...current, data: { ...current.data, borderColor: (e.currentTarget as HTMLInputElement).value } }))} class="w-full px-3 py-2 rounded-lg border border-[#e8d5c4]" />
-              </label>
-              <label class="space-y-1">
-                <span class="text-xs text-[#8b7355] font-semibold">圓角</span>
-                <input type="number" value={layer.data.borderRadius ?? 24} oninput={(e) => updateSelectedNode((current) => ({ ...current, data: { ...current.data, borderRadius: Number((e.currentTarget as HTMLInputElement).value) } }))} class="w-full px-3 py-2 rounded-lg border border-[#e8d5c4]" />
-              </label>
+            <div class="mt-4 space-y-3">
+              <div class="grid gap-3 md:grid-cols-3">
+                <label class="space-y-1">
+                  <span class="text-xs text-[#8b7355] font-semibold">Preset</span>
+                  <select
+                    value={layer.data.framePresetId ?? ""}
+                    onchange={(e) => applyPresetToSelectedLayer((e.currentTarget as HTMLSelectElement).value)}
+                    class="w-full px-3 py-2 rounded-lg border border-[#e8d5c4]"
+                  >
+                    <option value="">自訂</option>
+                    {#each framePresets() as preset}
+                      <option value={preset.id}>{preset.name}</option>
+                    {/each}
+                  </select>
+                </label>
+                <label class="space-y-1">
+                  <span class="text-xs text-[#8b7355] font-semibold">新 preset 名稱</span>
+                  <input type="text" bind:value={framePresetDraftName} class="w-full px-3 py-2 rounded-lg border border-[#e8d5c4]" />
+                </label>
+                <div class="flex items-end gap-2">
+                  <button onclick={saveCurrentFrameAsPreset} class="px-3 py-2 rounded-lg border border-[#e8d5c4] text-xs font-semibold">儲存為 preset</button>
+                  <button onclick={() => applyPresetToAllFrames(layer.data.framePresetId ?? framePresets()[0]?.id ?? "")} class="px-3 py-2 rounded-lg border border-[#e8d5c4] text-xs font-semibold">套用到全部相框</button>
+                </div>
+              </div>
+              <div class="grid gap-3 md:grid-cols-3">
+                <label class="space-y-1">
+                  <span class="text-xs text-[#8b7355] font-semibold">邊框寬度</span>
+                  <input type="number" value={selectedFrameToken(layer).borderWidth} oninput={(e) => updateSelectedFrameToken((t) => ({ ...t, borderWidth: Number((e.currentTarget as HTMLInputElement).value) }))} class="w-full px-3 py-2 rounded-lg border border-[#e8d5c4]" />
+                </label>
+                <label class="space-y-1">
+                  <span class="text-xs text-[#8b7355] font-semibold">邊框顏色</span>
+                  <input type="text" value={selectedFrameToken(layer).color} oninput={(e) => updateSelectedFrameToken((t) => ({ ...t, color: (e.currentTarget as HTMLInputElement).value }))} class="w-full px-3 py-2 rounded-lg border border-[#e8d5c4]" />
+                </label>
+                <label class="space-y-1">
+                  <span class="text-xs text-[#8b7355] font-semibold">圓角</span>
+                  <input type="number" value={selectedFrameToken(layer).borderRadius} oninput={(e) => updateSelectedFrameToken((t) => ({ ...t, borderRadius: Number((e.currentTarget as HTMLInputElement).value) }))} class="w-full px-3 py-2 rounded-lg border border-[#e8d5c4]" />
+                </label>
+                <label class="space-y-1">
+                  <span class="text-xs text-[#8b7355] font-semibold">內距</span>
+                  <input type="number" value={selectedFrameToken(layer).padding} oninput={(e) => updateSelectedFrameToken((t) => ({ ...t, padding: Number((e.currentTarget as HTMLInputElement).value) }))} class="w-full px-3 py-2 rounded-lg border border-[#e8d5c4]" />
+                </label>
+                <label class="space-y-1 md:col-span-2">
+                  <span class="text-xs text-[#8b7355] font-semibold">陰影</span>
+                  <input type="text" value={selectedFrameToken(layer).shadow} oninput={(e) => updateSelectedFrameToken((t) => ({ ...t, shadow: (e.currentTarget as HTMLInputElement).value }))} class="w-full px-3 py-2 rounded-lg border border-[#e8d5c4]" />
+                </label>
+                <label class="space-y-1 md:col-span-2">
+                  <span class="text-xs text-[#8b7355] font-semibold">漸層背景</span>
+                  <input type="text" value={selectedFrameToken(layer).gradient ?? ""} placeholder="linear-gradient(...)" oninput={(e) => updateSelectedFrameToken((t) => ({ ...t, gradient: (e.currentTarget as HTMLInputElement).value || undefined }))} class="w-full px-3 py-2 rounded-lg border border-[#e8d5c4]" />
+                </label>
+                <label class="space-y-1">
+                  <span class="text-xs text-[#8b7355] font-semibold">發光</span>
+                  <input type="text" value={selectedFrameToken(layer).glow ?? ""} oninput={(e) => updateSelectedFrameToken((t) => ({ ...t, glow: (e.currentTarget as HTMLInputElement).value || undefined }))} class="w-full px-3 py-2 rounded-lg border border-[#e8d5c4]" />
+                </label>
+                <label class="space-y-1">
+                  <span class="text-xs text-[#8b7355] font-semibold">紋理</span>
+                  <select value={selectedFrameToken(layer).texture ?? ""} onchange={(e) => updateSelectedFrameToken((t) => ({ ...t, texture: (e.currentTarget as HTMLSelectElement).value || undefined }))} class="w-full px-3 py-2 rounded-lg border border-[#e8d5c4]">
+                    <option value="">無</option>
+                    <option value="paper">paper</option>
+                  </select>
+                </label>
+                <label class="space-y-1 flex items-center gap-2 mt-5">
+                  <input type="checkbox" checked={selectedFrameToken(layer).doubleBorder ?? false} onchange={(e) => updateSelectedFrameToken((t) => ({ ...t, doubleBorder: (e.currentTarget as HTMLInputElement).checked }))} />
+                  <span class="text-xs text-[#8b7355] font-semibold">雙層邊框</span>
+                </label>
+              </div>
             </div>
           {/if}
         {:else}

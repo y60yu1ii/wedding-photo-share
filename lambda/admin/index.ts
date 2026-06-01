@@ -14,6 +14,7 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { ApiGatewayManagementApiClient, PostToConnectionCommand } from "@aws-sdk/client-apigatewaymanagementapi";
 import { SignJWT, jwtVerify } from "jose";
 import { defaultTemplate, makeAssetKey, normalizeTemplate, validateTemplate } from "../template";
+import { decodeCursor, encodeCursor } from "../pagination";
 
 const dynamo = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 const secrets = new SecretsManagerClient({});
@@ -98,6 +99,7 @@ async function createEvent(body: { name: string; date: string; requiresReview?: 
     status: "active",
     createdAt: now,
     requiresReview: body.requiresReview ?? true, // default to true
+    wallPolicy: "approved_only",
     templateDraft,
     templatePublished: null,
     templateUpdatedAt: now,
@@ -285,21 +287,28 @@ async function presignPhoto(s3Key: string): Promise<string> {
   return getSignedUrl(s3, cmd, { expiresIn: 900 });
 }
 
-async function listEventPhotos(eventId: string) {
+async function listEventPhotos(eventId: string, limit = 40, cursor?: string) {
   const resp = await dynamo.send(
-    new ScanCommand({
+    new QueryCommand({
       TableName: process.env.PHOTOS_TABLE!,
-      FilterExpression: "eventId = :eid",
+      IndexName: "eventId-status-index",
+      KeyConditionExpression: "eventId = :eid",
       ExpressionAttributeValues: { ":eid": eventId },
+      Limit: limit,
+      ExclusiveStartKey: decodeCursor(cursor),
     })
   );
   const photos = resp.Items ?? [];
-  return Promise.all(
+  const withUrls = await Promise.all(
     photos.map(async (p: any) => ({
       ...p,
       presignedUrl: p.s3Key ? await presignPhoto(p.s3Key) : undefined,
     }))
   );
+  return {
+    photos: withUrls,
+    nextCursor: encodeCursor(resp.LastEvaluatedKey),
+  };
 }
 
 // Separate function to get event with actual keys (used only for admin display)
@@ -318,6 +327,7 @@ async function getEventWithKeys(eventId: string) {
     uploadKey: item.uploadKey ?? "[已產生，請於建立時複製]",
     showKey: item.showKey ?? "[已產生，請於建立時複製]",
     requiresReview: item.requiresReview !== false, // default to true
+    wallPolicy: item.wallPolicy === "all_uploads" ? "all_uploads" : "approved_only",
     keyNote: item.uploadKey && item.showKey
       ? null
       : "金鑰僅於建立時顯示，請複製並妥善保存。若需重設，請刪除婚禮後重新建立。",
@@ -544,7 +554,7 @@ async function verifyToken(token: string): Promise<boolean> {
   }
 }
 
-async function updateEvent(eventId: string, body: { name?: string; date?: string; requiresReview?: boolean }) {
+async function updateEvent(eventId: string, body: { name?: string; date?: string; requiresReview?: boolean; wallPolicy?: "approved_only" | "all_uploads" }) {
   const updates: string[] = [];
   const attrNames: Record<string, string> = {};
   const attrValues: Record<string, any> = {};
@@ -563,6 +573,11 @@ async function updateEvent(eventId: string, body: { name?: string; date?: string
     updates.push("#r = :reqRev");
     attrNames["#r"] = "requiresReview";
     attrValues[":reqRev"] = body.requiresReview;
+  }
+  if (body.wallPolicy !== undefined) {
+    updates.push("#w = :wallPolicy");
+    attrNames["#w"] = "wallPolicy";
+    attrValues[":wallPolicy"] = body.wallPolicy;
   }
 
   if (updates.length === 0) return { success: true };
@@ -749,8 +764,9 @@ export async function handler(event: any) {
     // GET /admin/events/{eventId}/photos
     if (path.match(/^\/admin\/events\/[^/]+\/photos$/) && method === "GET") {
       const eventId = decodeURIComponent(path.split("/")[3]);
-      const photos = await listEventPhotos(eventId);
-      return res(200, { photos });
+      const limit = Math.max(1, Math.min(Number(event.queryStringParameters?.limit ?? 40), 100));
+      const result = await listEventPhotos(eventId, limit, event.queryStringParameters?.cursor);
+      return res(200, result);
     }
 
     return res(404, { error: "Not found" });

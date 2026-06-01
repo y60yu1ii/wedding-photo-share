@@ -2,8 +2,10 @@
 	"/": [],
 	"/admin": [],
 	"/admin/event/[eventId]": [],
+	"/admin/event/[eventId]/design": [],
 	"/admin/login": [],
 	"/event/[eventId]": [],
 	"/event/[eventId]/upload": [],
+	"/event/[eventId]/wall": [],
 	"/myguest/[eventId]": []
 }

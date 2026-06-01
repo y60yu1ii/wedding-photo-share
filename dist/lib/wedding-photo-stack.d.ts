@@ -21,6 +21,7 @@ export declare class WeddingPhotoStack extends cdk.Stack {
     readonly adminLambda: lambda.Function;
     readonly slideshowLambda: lambda.Function;
     readonly myguestLambda: lambda.Function;
+    readonly wallLambda: lambda.Function;
     readonly websocketLambda: lambda.Function;
     readonly dlq: sqs.Queue;
     constructor(scope: Construct, id: string, props?: WeddingPhotoStackProps);

@@ -226,6 +226,8 @@ describe("POST /admin/events (authenticated)", () => {
             const body = JSON.parse(result.body);
             expect(body.photos).toHaveLength(1);
             expect(body.photos[0].presignedUrl).toBe("https://mock-presigned-url");
+            expect(mockSend.mock.calls[0][0].input.IndexName).toBe("eventId-status-index");
+            expect(mockSend.mock.calls[0][0].input.KeyConditionExpression).toBe("eventId = :eid");
         });
     });
     describe("PATCH /admin/events/{eventId} (authenticated)", () => {
@@ -313,6 +315,33 @@ describe("POST /admin/events (authenticated)", () => {
             const result = await (0, index_1.handler)(event);
             expect(result.statusCode).toBe(404);
         });
+    });
+});
+describe("GET /admin/events/{eventId}/template (authenticated)", () => {
+    test("returns event template payload", async () => {
+        mockSend
+            .mockResolvedValueOnce({
+            Item: {
+                PK: "EVENT-1",
+                SK: "METADATA",
+                template: {
+                    canvas: { width: 1920, height: 1080 },
+                    playback: { transition: "fade", intervalSeconds: 6 },
+                    layers: [],
+                    published: true,
+                },
+            },
+        })
+            .mockResolvedValueOnce({ Items: [] });
+        const event = {
+            requestContext: { http: { method: "GET", path: "/admin/events/EVENT-1/template" } },
+            headers: authHeaders(),
+        };
+        const result = await (0, index_1.handler)(event);
+        expect(result.statusCode).toBe(200);
+        const body = JSON.parse(result.body);
+        expect(body.template.playback.intervalSeconds).toBe(6);
+        expect(body.template.playback.transition).toBe("fade");
     });
 });
 describe("Unknown routes", () => {

@@ -15,6 +15,7 @@ jest.mock("@aws-sdk/lib-dynamodb", () => ({
   QueryCommand: jest.fn().mockImplementation((i: any) => ({ input: i })),
   DeleteCommand: jest.fn().mockImplementation((i: any) => ({ input: i })),
   GetCommand: jest.fn().mockImplementation((i: any) => ({ input: i })),
+  UpdateCommand: jest.fn().mockImplementation((i: any) => ({ input: i })),
 }));
 
 jest.mock("@aws-sdk/client-s3", () => ({
@@ -39,7 +40,16 @@ beforeEach(() => {
 describe("GET /myguest/photos", () => {
   test("returns photos by eventId + nickname", async () => {
     mockDdbSend.mockResolvedValueOnce({
-      Items: [{ PK: "PHOTO#1", nickname: "Alice", status: "approved", s3Key: "k1" }],
+      Items: [
+        {
+          PK: "PHOTO#1",
+          eventId: "EVENT-1",
+          nickname: "Alice",
+          status: "approved",
+          confirmedAt: "2026-05-29T00:00:01.000Z",
+          s3Key: "k1",
+        },
+      ],
     });
     const event = {
       requestContext: { http: { method: "GET", path: "/myguest/photos" } },
@@ -50,6 +60,86 @@ describe("GET /myguest/photos", () => {
     const body = JSON.parse(result.body);
     expect(body.photos).toHaveLength(1);
     expect(body.photos[0].presignedUrl).toBe("https://signed-view-url");
+    expect(mockDdbSend.mock.calls[0][0].input.IndexName).toBe("eventId-nickname-index");
+  });
+
+  test("returns photos by eventId + guestKey while keeping representative metadata", async () => {
+    mockDdbSend.mockResolvedValueOnce({
+      Items: [
+        {
+          PK: "PHOTO#1",
+          eventId: "EVENT-1",
+          nickname: "Alice",
+          guestKey: "guest-abc",
+          representativePhotoId: "PHOTO#2",
+          status: "approved",
+          s3Key: "k1",
+          confirmedAt: "2026-05-29T00:00:01.000Z",
+        },
+      ],
+    });
+    const event = {
+      requestContext: { http: { method: "GET", path: "/myguest/photos" } },
+      queryStringParameters: { eventId: "EVENT-1", guestKey: "guest-abc" },
+    };
+    const result = await handler(event);
+    expect(result.statusCode).toBe(200);
+    const body = JSON.parse(result.body);
+    expect(body.photos[0].guestKey).toBe("guest-abc");
+    expect(body.photos[0].representativePhotoId).toBe("PHOTO#2");
+    expect(body.photos[0].createdAt).toBe("2026-05-29T00:00:01.000Z");
+    expect(mockDdbSend.mock.calls[0][0].input.IndexName).toBe("eventId-status-index");
+  });
+});
+
+describe("PATCH /myguest/photos/:photoId/representative", () => {
+  test("updates representativePhotoId for the guest's photos", async () => {
+    mockDdbSend
+      .mockResolvedValueOnce({
+        Item: {
+          PK: "PHOTO#2",
+          SK: "METADATA",
+          eventId: "EVENT-1",
+          guestKey: "guest-abc",
+          nickname: "Alice",
+        },
+      })
+      .mockResolvedValueOnce({
+        Items: [
+          { PK: "PHOTO#1", SK: "METADATA", eventId: "EVENT-1", guestKey: "guest-abc", nickname: "Alice", confirmedAt: "2026-05-29T00:00:01.000Z" },
+          { PK: "PHOTO#2", SK: "METADATA", eventId: "EVENT-1", guestKey: "guest-abc", nickname: "Alice", confirmedAt: "2026-05-29T00:00:02.000Z" },
+        ],
+      })
+      .mockResolvedValue({});
+
+    const event = {
+      requestContext: { http: { method: "PATCH", path: "/myguest/photos/PHOTO#2/representative" } },
+      body: JSON.stringify({ eventId: "EVENT-1", guestKey: "guest-abc" }),
+    };
+    const result = await handler(event);
+    expect(result.statusCode).toBe(200);
+    expect(mockDdbSend.mock.calls[1][0].input.IndexName).toBe("eventId-nickname-index");
+    expect(mockDdbSend.mock.calls[2][0].input.ExpressionAttributeValues[":representativePhotoId"]).toBe("PHOTO#2");
+    expect(mockDdbSend.mock.calls[3][0].input.ExpressionAttributeValues[":representativePhotoId"]).toBe("PHOTO#2");
+  });
+
+  test("rejects representative updates when the guestKey does not own the photo", async () => {
+    mockDdbSend.mockResolvedValueOnce({
+      Item: {
+        PK: "PHOTO#2",
+        SK: "METADATA",
+        eventId: "EVENT-1",
+        guestKey: "guest-owner",
+        nickname: "Alice",
+      },
+    });
+
+    const event = {
+      requestContext: { http: { method: "PATCH", path: "/myguest/photos/PHOTO#2/representative" } },
+      body: JSON.stringify({ eventId: "EVENT-1", guestKey: "guest-abc" }),
+    };
+    const result = await handler(event);
+    expect(result.statusCode).toBe(403);
   });
 });
 

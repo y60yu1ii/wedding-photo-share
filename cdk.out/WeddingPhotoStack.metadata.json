@@ -89,6 +89,18 @@
       "data": "PhotoBucketName"
     }
   ],
+  "/WeddingPhotoStack/FrontendBucketName": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "FrontendBucketName"
+    }
+  ],
+  "/WeddingPhotoStack/FrontendDistributionId": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "FrontendDistributionId"
+    }
+  ],
   "/WeddingPhotoStack/RestApiUrl": [
     {
       "type": "aws:cdk:logicalId",
@@ -197,6 +209,12 @@
       "data": "MyGuestLambda7900681C"
     }
   ],
+  "/WeddingPhotoStack/WallLambda/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "WallLambdaAAB78F42"
+    }
+  ],
   "/WeddingPhotoStack/WebSocketLambda/Resource": [
     {
       "type": "aws:cdk:logicalId",
@@ -249,6 +267,18 @@
     {
       "type": "aws:cdk:logicalId",
       "data": "MyGuestLambdaDuration15B0F1FC"
+    }
+  ],
+  "/WeddingPhotoStack/WallLambdaErrorRate/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "WallLambdaErrorRateC434E437"
+    }
+  ],
+  "/WeddingPhotoStack/WallLambdaDuration/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "WallLambdaDuration81CEB474"
     }
   ],
   "/WeddingPhotoStack/WebSocketLambdaErrorRate/Resource": [
@@ -401,6 +431,78 @@
       "data": "RestApiOPTIONSadmineventseventId952B5459"
     }
   ],
+  "/WeddingPhotoStack/RestApi/ANY--admin--events--{eventId}--template/AdminIntegration-Permission": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "RestApiANYadmineventseventIdtemplateAdminIntegrationPermission9156BA81"
+    }
+  ],
+  "/WeddingPhotoStack/RestApi/ANY--admin--events--{eventId}--template/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "RestApiANYadmineventseventIdtemplateE1D472C8"
+    }
+  ],
+  "/WeddingPhotoStack/RestApi/OPTIONS--admin--events--{eventId}--template/AdminIntegration-Permission": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "RestApiOPTIONSadmineventseventIdtemplateAdminIntegrationPermissionE90C3AD8"
+    }
+  ],
+  "/WeddingPhotoStack/RestApi/OPTIONS--admin--events--{eventId}--template/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "RestApiOPTIONSadmineventseventIdtemplateD279BDD6"
+    }
+  ],
+  "/WeddingPhotoStack/RestApi/ANY--admin--events--{eventId}--template-assets--presign/AdminIntegration-Permission": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "RestApiANYadmineventseventIdtemplateassetspresignAdminIntegrationPermission0D9AF04E"
+    }
+  ],
+  "/WeddingPhotoStack/RestApi/ANY--admin--events--{eventId}--template-assets--presign/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "RestApiANYadmineventseventIdtemplateassetspresignAD3172C4"
+    }
+  ],
+  "/WeddingPhotoStack/RestApi/OPTIONS--admin--events--{eventId}--template-assets--presign/AdminIntegration-Permission": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "RestApiOPTIONSadmineventseventIdtemplateassetspresignAdminIntegrationPermissionE5233EC8"
+    }
+  ],
+  "/WeddingPhotoStack/RestApi/OPTIONS--admin--events--{eventId}--template-assets--presign/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "RestApiOPTIONSadmineventseventIdtemplateassetspresign5124C383"
+    }
+  ],
+  "/WeddingPhotoStack/RestApi/ANY--admin--events--{eventId}--template-assets--confirm/AdminIntegration-Permission": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "RestApiANYadmineventseventIdtemplateassetsconfirmAdminIntegrationPermission9F5BF41A"
+    }
+  ],
+  "/WeddingPhotoStack/RestApi/ANY--admin--events--{eventId}--template-assets--confirm/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "RestApiANYadmineventseventIdtemplateassetsconfirmABBEE743"
+    }
+  ],
+  "/WeddingPhotoStack/RestApi/OPTIONS--admin--events--{eventId}--template-assets--confirm/AdminIntegration-Permission": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "RestApiOPTIONSadmineventseventIdtemplateassetsconfirmAdminIntegrationPermissionD9258306"
+    }
+  ],
+  "/WeddingPhotoStack/RestApi/OPTIONS--admin--events--{eventId}--template-assets--confirm/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "RestApiOPTIONSadmineventseventIdtemplateassetsconfirm5A6641D0"
+    }
+  ],
   "/WeddingPhotoStack/RestApi/GET--admin--events--{eventId}--photos/AdminIntegration-Permission": [
     {
       "type": "aws:cdk:logicalId",
@@ -533,6 +635,30 @@
       "data": "RestApiDELETEmyguestphotosphotoId30083A55"
     }
   ],
+  "/WeddingPhotoStack/RestApi/PATCH--myguest--photos--{photoId}--representative/MyGuestIntegration-Permission": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "RestApiPATCHmyguestphotosphotoIdrepresentativeMyGuestIntegrationPermissionB847A976"
+    }
+  ],
+  "/WeddingPhotoStack/RestApi/PATCH--myguest--photos--{photoId}--representative/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "RestApiPATCHmyguestphotosphotoIdrepresentativeFDE4C75B"
+    }
+  ],
+  "/WeddingPhotoStack/RestApi/GET--wall--photos/WallIntegration-Permission": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "RestApiGETwallphotosWallIntegrationPermission6866E0DF"
+    }
+  ],
+  "/WeddingPhotoStack/RestApi/GET--wall--photos/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "RestApiGETwallphotosCAA8D6D7"
+    }
+  ],
   "/WeddingPhotoStack/AdminLambda/ServiceRole/Resource": [
     {
       "type": "aws:cdk:logicalId",
@@ -555,6 +681,12 @@
     {
       "type": "aws:cdk:logicalId",
       "data": "MyGuestLambdaServiceRoleCFADFD16"
+    }
+  ],
+  "/WeddingPhotoStack/WallLambda/ServiceRole/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "WallLambdaServiceRole3ACA5BD6"
     }
   ],
   "/WeddingPhotoStack/WebSocketLambda/ServiceRole/Resource": [
@@ -611,6 +743,12 @@
       "data": "RestApiGETmyguestphotosMyGuestIntegration8BFF48B4"
     }
   ],
+  "/WeddingPhotoStack/RestApi/GET--wall--photos/WallIntegration/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "RestApiGETwallphotosWallIntegrationB194704A"
+    }
+  ],
   "/WeddingPhotoStack/AdminLambda/ServiceRole/DefaultPolicy/Resource": [
     {
       "type": "aws:cdk:logicalId",
@@ -633,6 +771,12 @@
     {
       "type": "aws:cdk:logicalId",
       "data": "MyGuestLambdaServiceRoleDefaultPolicy8BF00C2C"
+    }
+  ],
+  "/WeddingPhotoStack/WallLambda/ServiceRole/DefaultPolicy/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "WallLambdaServiceRoleDefaultPolicy41685C92"
     }
   ],
   "/WeddingPhotoStack/WebSocketLambda/ServiceRole/DefaultPolicy/Resource": [

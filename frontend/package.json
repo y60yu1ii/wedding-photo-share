@@ -29,6 +29,7 @@
     "vitest": "^3.2.4"
   },
   "dependencies": {
-    "@xyflow/svelte": "^1.5.2"
+    "@xyflow/svelte": "^1.5.2",
+    "gsap": "^3.15.0"
   }
 }
