@@ -2,25 +2,16 @@ import { describe, expect, it, vi, afterEach } from "vitest";
 import {
   normalizeTransitionPreset,
   resolveTransitionConfig,
-  resolveTransitionPreset,
 } from "$lib/utils/slideshowTransition";
 
 afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe("slideshow transition helpers", () => {
+describe("slideshowTransition (post-GSAP migration)", () => {
   it("normalizes unknown transition preset to fade", () => {
     expect(normalizeTransitionPreset("unknown")).toBe("fade");
     expect(normalizeTransitionPreset(undefined)).toBe("fade");
-  });
-
-  it("falls back to reduced-motion preset when media query matches", () => {
-    Object.defineProperty(window, "matchMedia", {
-      writable: true,
-      value: vi.fn().mockReturnValue({ matches: true }),
-    });
-    expect(resolveTransitionPreset({ transition: "kenburns", intervalSeconds: 5, transitionSeconds: 0.8 })).toBe("fade");
   });
 
   it("normalizes transition config boundaries", () => {
