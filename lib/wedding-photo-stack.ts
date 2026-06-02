@@ -341,6 +341,11 @@ export class WeddingPhotoStack extends cdk.Stack {
       integration: slideshowInt,
     });
     this.restApi.addRoutes({
+      path: "/slideshow/template",
+      methods: [apigwv2.HttpMethod.GET],
+      integration: slideshowInt,
+    });
+    this.restApi.addRoutes({
       path: "/slideshow/presign/{photoId}",
       methods: [apigwv2.HttpMethod.GET],
       integration: slideshowInt,
