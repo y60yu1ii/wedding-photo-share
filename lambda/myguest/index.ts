@@ -10,7 +10,9 @@ import { S3Client, GetObjectCommand, DeleteObjectCommand } from "@aws-sdk/client
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { decodeCursor, encodeCursor } from "../pagination";
 
-const dynamo = DynamoDBDocumentClient.from(new DynamoDBClient({}));
+const dynamo = DynamoDBDocumentClient.from(new DynamoDBClient({}), {
+  marshallOptions: { removeUndefinedValues: true },
+});
 const s3 = new S3Client({});
 
 function normalizeNickname(nickname: string): string {

@@ -9,7 +9,9 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { defaultTemplate, normalizeTemplate } from "../template";
 import { decodeCursor, encodeCursor } from "../pagination";
 
-const dynamo = DynamoDBDocumentClient.from(new DynamoDBClient({}));
+const dynamo = DynamoDBDocumentClient.from(new DynamoDBClient({}), {
+  marshallOptions: { removeUndefinedValues: true },
+});
 const s3 = new S3Client({});
 
 const PRESIGN_EXPIRY = 3600; // 1 hour

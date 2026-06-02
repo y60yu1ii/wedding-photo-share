@@ -16,7 +16,9 @@ import { SignJWT, jwtVerify } from "jose";
 import { defaultTemplate, makeAssetKey, normalizeTemplate, validateTemplate } from "../template";
 import { decodeCursor, encodeCursor } from "../pagination";
 
-const dynamo = DynamoDBDocumentClient.from(new DynamoDBClient({}));
+const dynamo = DynamoDBDocumentClient.from(new DynamoDBClient({}), {
+  marshallOptions: { removeUndefinedValues: true },
+});
 const secrets = new SecretsManagerClient({});
 const s3 = new S3Client({});
 
